@@ -104,7 +104,8 @@ public interface BukkitSavePositionProvider extends SavePositionProvider {
 
     private Optional<Integer> getY(@NotNull Location location, @NotNull ChunkSnapshot chunk, int minY, int maxY, int x, int z) {
         if (location.getWorld().getEnvironment().equals(net.william278.huskhomes.position.World.Environment.NETHER)) {
-            for (int y = minY + 1; y < Math.min(chunk.getHighestBlockYAt(x, z), maxY); y++) {
+            final int highestY = Math.min(chunk.getHighestBlockYAt(x, z), maxY - 1);
+            for (int y = minY + 1; y <= highestY; y++) {
                 if (isSafeLocation(chunk, x, y, z)) {
                     return Optional.of(y);
                 }
