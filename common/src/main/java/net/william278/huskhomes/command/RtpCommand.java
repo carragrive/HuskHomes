@@ -167,9 +167,9 @@ public class RtpCommand extends Command implements UserListTabCompletable {
             return Optional.empty();
         }
 
-        // Users can always RTP within the world and server they're currently on
-        if (!worldName.equals(teleporter.getPosition().getWorld().getName()) ||
-                (targetServer != null && !teleporter.getPosition().getServer().equals(targetServer))) {
+        // Console executions bypass the target player's destination permissions
+        if (executor instanceof OnlineUser && (!worldName.equals(teleporter.getPosition().getWorld().getName()) ||
+                (targetServer != null && !teleporter.getPosition().getServer().equals(targetServer)))) {
             if (!worldName.equals(teleporter.getPosition().getWorld().getName()) &&
                     !teleporter.hasPermission(getPermission(worldName))) {
                 plugin.getLocales().getLocale("error_no_permission")
