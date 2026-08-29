@@ -30,6 +30,7 @@ import net.william278.huskhomes.config.ConfigProvider;
 import net.william278.huskhomes.config.RtpOptions;
 import net.william278.huskhomes.config.Server;
 import net.william278.huskhomes.config.Settings;
+import net.william278.huskhomes.database.Database;
 import net.william278.huskhomes.database.DatabaseProvider;
 import net.william278.huskhomes.event.EventDispatcher;
 import net.william278.huskhomes.hook.HookProvider;
@@ -58,6 +59,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 
 /**
@@ -67,6 +69,9 @@ public interface HuskHomes extends Task.Supplier, EventDispatcher, SavePositionP
         ConfigProvider, DatabaseProvider, BrokerProvider, MetaProvider, HookProvider, RandomTeleportProvider,
         AudiencesProvider, UserProvider, TextValidator, ManagerProvider, ListenerProvider, CommandProvider,
         GsonProvider, DumpProvider {
+
+    // Share of the connection pool pre-login lookups may occupy; the rest stays free for gameplay
+    int INBOUND_PREFETCH_POOL_SHARE = 3;
 
     @NotNull
     Map<String, RtpOptions> getPendingRtpOptions();
@@ -101,6 +106,48 @@ public interface HuskHomes extends Task.Supplier, EventDispatcher, SavePositionP
         return getBroker().map(broker -> broker.getServerState(server)).orElse(Broker.ServerState.UNKNOWN);
     }
 
+    // Pre-login lookups, by user UUID. An empty Optional records that the lookup ran and found nothing, so the
+    // join handler knows not to repeat it
+    @NotNull
+    Map<UUID, Optional<Database.PendingTeleport>> getPendingInboundTeleports();
+
+    // Pre-login lookups currently in flight
+    @NotNull
+    AtomicInteger getInboundPrefetchCount();
+
+    // Concurrent pre-login lookups allowed, as a share of the configured pool. Read per call, so a reload applies
+    default int getInboundPrefetchLimit() {
+        return Math.max(1, getSettings().getDatabase().getPoolOptions().getSize() / INBOUND_PREFETCH_POOL_SHARE);
+    }
+
+    // Read a connecting user's pending teleport during the login handshake, while there is time to spare.
+    // Under a burst of joins this gives up rather than holding up logins; the join handler then reads it instead
+    @Blocking
+    default void prefetchInboundTeleport(@NotNull UUID uuid) {
+        if (!getSettings().getCrossServer().isEnabled()) {
+            return;
+        }
+        final AtomicInteger inFlight = getInboundPrefetchCount();
+        if (inFlight.incrementAndGet() > getInboundPrefetchLimit()) {
+            inFlight.decrementAndGet();
+            return;
+        }
+        try {
+            final Optional<Database.PendingTeleport> pending = getDatabase().getPendingTeleport(uuid);
+            getPendingInboundTeleports().put(uuid, pending);
+            // Drop it if they never make it through login
+            runAsyncDelayed(() -> getPendingInboundTeleports().remove(uuid, pending), 20L * 60L);
+        } finally {
+            inFlight.decrementAndGet();
+        }
+    }
+
+    // The pre-login lookup's result: null if it never ran, an empty Optional if it ran and found nothing
+    @Nullable
+    default Optional<Database.PendingTeleport> takePendingInboundTeleport(@NotNull UUID uuid) {
+        return getPendingInboundTeleports().remove(uuid);
+    }
+
     // Last world per server for each online user, by user UUID; loaded on join so lookups never hit the database
     @NotNull
     Map<UUID, Map<String, World>> getLastWorldCache();
@@ -115,9 +162,10 @@ public interface HuskHomes extends Task.Supplier, EventDispatcher, SavePositionP
 
     @Blocking
     default Optional<Map<String, World>> cacheLastWorlds(@NotNull OnlineUser user,
-                                                         @NotNull Map<String, World> session) {
+                                                         @NotNull Map<String, World> session,
+                                                         @NotNull Map<String, World> stored) {
         final Map<String, World> worlds = Maps.newConcurrentMap();
-        worlds.putAll(getDatabase().getLastWorlds(user));
+        worlds.putAll(stored);
 
         worlds.putAll(session);
         return getLastWorldCache().replace(user.getUuid(), session, worlds)
