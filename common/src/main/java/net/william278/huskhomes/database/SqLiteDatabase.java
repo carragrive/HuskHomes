@@ -811,6 +811,21 @@ public class SqLiteDatabase extends Database {
     }
 
     @Override
+    public Optional<PendingTeleport> getPendingTeleport(@NotNull UUID uuid) {
+        try (PreparedStatement statement = getConnection().prepareStatement(format("""
+                SELECT `x`, `y`, `z`, `yaw`, `pitch`, `world_name`, `world_uuid`, `server_name`, `type`
+                FROM `%teleport_data%`
+                INNER JOIN `%position_data%` ON `%teleport_data%`.`destination_id` = `%position_data%`.`id`
+                WHERE `player_uuid`=?"""))) {
+            statement.setString(1, uuid.toString());
+            return readPendingTeleport(statement.executeQuery());
+        } catch (SQLException e) {
+            plugin.log(Level.SEVERE, "Failed to query the pending teleport of " + uuid, e);
+        }
+        return Optional.empty();
+    }
+
+    @Override
     public Optional<Teleport> getCurrentTeleport(@NotNull OnlineUser onlineUser) {
         try (PreparedStatement statement = getConnection().prepareStatement(format("""
                 SELECT `x`, `y`, `z`, `yaw`, `pitch`, `world_name`, `world_uuid`, `server_name`, `type`
@@ -998,6 +1013,33 @@ public class SqLiteDatabase extends Database {
         } catch (SQLException e) {
             plugin.log(Level.SEVERE, "Failed to set the offline position of " + user.getName(), e);
         }
+    }
+
+    // This driver holds a single connection rather than a pool, so there are no checkouts to save by batching
+    @Override
+    @NotNull
+    public JoinData getJoinData(@NotNull User user) {
+        return new JoinData(getUser(user.getUuid()).orElse(null), getLastWorlds(user), getHomes(user));
+    }
+
+    @Override
+    @NotNull
+    public Map<String, World> getLastWorlds(@NotNull User user) {
+        final Map<String, World> lastWorlds = new HashMap<>();
+        try (PreparedStatement statement = getConnection().prepareStatement(format("""
+                SELECT `server_name`, `world_name`, `world_uuid`, `world_key`
+                FROM `%last_world_data%`
+                WHERE `user_uuid`=?;"""))) {
+            statement.setString(1, user.getUuid().toString());
+
+            final ResultSet resultSet = statement.executeQuery();
+            while (resultSet.next()) {
+                lastWorlds.put(resultSet.getString("server_name"), readLastWorld(resultSet));
+            }
+        } catch (SQLException e) {
+            plugin.log(Level.SEVERE, "Failed to query the last worlds of " + user.getName(), e);
+        }
+        return lastWorlds;
     }
 
     @Override

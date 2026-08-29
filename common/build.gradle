@@ -37,6 +37,15 @@ dependencies {
     testImplementation 'com.github.plan-player-analytics:Plan:5.6.2883'
     testImplementation 'com.github.yuriy-g:simple-java-plot:5c502c2e98'
     testImplementation 'com.google.guava:guava:33.5.0-jre'
+    testImplementation "org.xerial:sqlite-jdbc:${sqlite_driver_version}"
+    testImplementation "com.h2database:h2:${h2_driver_version}"
+
+    // Proxying the HuskHomes interface resolves every type in its method signatures, which reach into the
+    // compile-only dependencies, so tests need them on the classpath too
+    testCompileOnly 'org.projectlombok:lombok:1.18.42'
+    testRuntimeOnly 'net.kyori:adventure-api:4.26.1'
+    testRuntimeOnly 'net.kyori:adventure-platform-api:4.4.1'
+    testRuntimeOnly 'net.william278.toilet:toilet-common:1.1.2'
 
     annotationProcessor 'org.projectlombok:lombok:1.18.42'
 }

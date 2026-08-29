@@ -332,6 +332,16 @@ public abstract class Database {
      */
     public abstract void ensureUser(@NotNull User user);
 
+    // Skip the lookup ensureUser does when the join batch already read the row and nothing needs writing.
+    // Returns whether it wrote, in which case the batch's copy of the row is stale
+    public final boolean ensureUser(@NotNull User user, @NotNull JoinData joinData) {
+        if (joinData.getUser().filter(saved -> saved.getUsername().equals(user.getName())).isPresent()) {
+            return false;
+        }
+        ensureUser(user);
+        return true;
+    }
+
     /**
      * Get {@link SavedUser} for a user by their Minecraft username (<i>case-insensitive</i>).
      *
@@ -514,6 +524,55 @@ public abstract class Database {
      * @return An optional with the {@link Teleport} present if they are teleporting cross-server
      */
     public abstract Optional<Teleport> getCurrentTeleport(@NotNull OnlineUser onlineUser);
+
+    // Read a pending cross-server teleport by UUID, for a user who isn't online yet
+    public abstract Optional<PendingTeleport> getPendingTeleport(@NotNull UUID uuid);
+
+    // Everything the join handler needs, over a single pooled connection instead of one checkout per read
+    @NotNull
+    public abstract JoinData getJoinData(@NotNull User user);
+
+    // A joining user's stored row, last worlds and homes. A null user has never been saved before
+    public record JoinData(@Nullable SavedUser user, @NotNull Map<String, World> lastWorlds,
+                           @NotNull List<Home> homes) {
+
+        @NotNull
+        public static JoinData empty() {
+            return new JoinData(null, Map.of(), List.of());
+        }
+
+        @NotNull
+        public Optional<SavedUser> getUser() {
+            return Optional.ofNullable(user);
+        }
+    }
+
+    // Read a pending teleport row; shared by every driver
+    @NotNull
+    protected final Optional<PendingTeleport> readPendingTeleport(@NotNull ResultSet resultSet) throws SQLException {
+        if (!resultSet.next()) {
+            return Optional.empty();
+        }
+        return Optional.of(new PendingTeleport(
+                Position.at(
+                        resultSet.getDouble("x"),
+                        resultSet.getDouble("y"),
+                        resultSet.getDouble("z"),
+                        resultSet.getFloat("yaw"),
+                        resultSet.getFloat("pitch"),
+                        World.from(
+                                resultSet.getString("world_name"),
+                                UUID.fromString(resultSet.getString("world_uuid"))
+                        ),
+                        resultSet.getString("server_name")
+                ),
+                Teleport.Type.getTeleportType(resultSet.getInt("type")).orElse(Teleport.Type.TELEPORT)
+        ));
+    }
+
+    // A stored cross-server teleport, before it is bound to an online user
+    public record PendingTeleport(@NotNull Position target, @NotNull Teleport.Type type) {
+    }
 
     /**
      * Updates a user in the database with new {@link SavedUser}.

@@ -70,6 +70,7 @@ import space.arim.morepaperlib.scheduling.RegionalScheduler;
 
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 
 @Getter
@@ -90,6 +91,8 @@ public class BukkitHuskHomes extends JavaPlugin implements HuskHomes, BukkitTask
     private final Map<String, List<User>> globalUserList = Maps.newConcurrentMap();
     private final Map<String, RtpOptions> pendingRtpOptions = Maps.newConcurrentMap();
     private final Map<UUID, Map<String, World>> lastWorldCache = Maps.newConcurrentMap();
+    private final Map<UUID, Optional<Database.PendingTeleport>> pendingInboundTeleports = Maps.newConcurrentMap();
+    private final AtomicInteger inboundPrefetchCount = new AtomicInteger();
     private final List<Command> commands = Lists.newArrayList();
 
     @Setter

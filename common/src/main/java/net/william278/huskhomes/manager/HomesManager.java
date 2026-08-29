@@ -123,7 +123,12 @@ public class HomesManager {
      * @param user the user to cache homes for
      */
     public void cacheUserHomes(@NotNull User user) {
-        userHomes.put(user.getName(), new ConcurrentLinkedQueue<>(plugin.getDatabase().getHomes(user)));
+        cacheUserHomes(user, plugin.getDatabase().getHomes(user));
+    }
+
+    // Cache homes already read elsewhere, rather than querying for them again
+    public void cacheUserHomes(@NotNull User user, @NotNull List<Home> homes) {
+        userHomes.put(user.getName(), new ConcurrentLinkedQueue<>(homes));
     }
 
     /**

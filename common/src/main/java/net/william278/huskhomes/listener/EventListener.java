@@ -30,9 +30,11 @@ import net.william278.huskhomes.network.Message;
 import net.william278.huskhomes.network.Payload;
 import net.william278.huskhomes.position.Position;
 import net.william278.huskhomes.position.World;
+import net.william278.huskhomes.database.Database;
 import net.william278.huskhomes.teleport.Teleport;
 import net.william278.huskhomes.teleport.TeleportBuilder;
 import net.william278.huskhomes.teleport.TeleportationException;
+import net.william278.huskhomes.user.SavedUser;
 import net.william278.huskhomes.user.OnlineUser;
 import net.william278.huskhomes.user.User;
 import org.jetbrains.annotations.Blocking;
@@ -64,13 +66,30 @@ public abstract class EventListener {
         final World currentWorld = onlineUser.getPosition().getWorld();
         lastWorldSession.put(plugin.getServerName(), currentWorld);
 
+        // Teleport straight away if pre-login read the destination. It also records having found nothing, so only
+        // a lookup that never ran falls through to the database below
+        final Optional<Database.PendingTeleport> prefetched = plugin
+                .takePendingInboundTeleport(onlineUser.getUuid());
+        final boolean handledInbound = prefetched != null && (prefetched.isEmpty()
+                || handleInboundTeleport(onlineUser, prefetched.get()));
+
         plugin.runAsync(() -> {
-            // Ensure the user is in the database
-            plugin.getDatabase().ensureUser(onlineUser);
+            if (!handledInbound && plugin.getSettings().getCrossServer().isEnabled()) {
+                this.handleInboundTeleport(onlineUser);
+            }
+            // One read for the user's row, last worlds and homes, rather than a connection each
+            final Database.JoinData joinData = plugin.getDatabase().getJoinData(onlineUser);
+
+            // Ensure the user is in the database; writes only if the batch shows they are new or renamed. Re-read
+            // the row when it did, since the batch read it before the write
+            final Optional<SavedUser> savedUser = plugin.getDatabase().ensureUser(onlineUser, joinData)
+                    ? plugin.getDatabase().getUser(onlineUser.getUuid())
+                    : joinData.getUser();
             plugin.getCurrentlyOnWarmup().remove(onlineUser.getUuid());
 
             // Cache last worlds per server, and record this one
-            final Optional<Map<String, World>> cachedWorlds = plugin.cacheLastWorlds(onlineUser, lastWorldSession);
+            final Optional<Map<String, World>> cachedWorlds = plugin.cacheLastWorlds(
+                    onlineUser, lastWorldSession, joinData.lastWorlds());
             if (cachedWorlds.isEmpty()
                     || plugin.getLastWorldCache().get(onlineUser.getUuid()) != cachedWorlds.get()) {
                 return;
@@ -79,8 +98,6 @@ public abstract class EventListener {
 
             // Handle cross-server checks
             if (plugin.getSettings().getCrossServer().isEnabled()) {
-                this.handleInboundTeleport(onlineUser);
-
                 // Synchronize the global player list
                 plugin.runSyncDelayed(() -> this.updateUserList(
                                 onlineUser,
@@ -97,10 +114,10 @@ public abstract class EventListener {
             }
 
             // Cache this user's homes
-            plugin.getManager().homes().cacheUserHomes(onlineUser);
+            plugin.getManager().homes().cacheUserHomes(onlineUser, joinData.homes());
 
             // Set their ignoring requests state
-            plugin.getDatabase().getUser(onlineUser.getUuid()).ifPresent(userData -> {
+            savedUser.ifPresent(userData -> {
                 plugin.getSavedUsers().add(userData);
 
                 // Send a reminder message if they are still ignoring requests
@@ -154,32 +171,47 @@ public abstract class EventListener {
      * @param teleporter user to handle the checks for
      */
     private void handleInboundTeleport(@NotNull OnlineUser teleporter) {
-        plugin.getDatabase().getCurrentTeleport(teleporter).ifPresent(teleport -> {
-            if (teleport.getType() == Teleport.Type.RESPAWN) {
-                handleInboundRespawn(teleporter);
-                return;
-            }
-
-            // Random teleports validate (and, if configured, carve) the destination on arrival
-            final Optional<RtpOptions> options = teleport.getType() == Teleport.Type.RANDOM_TELEPORT
-                    ? plugin.takePendingRtpOptions(teleporter.getName())
-                    : Optional.empty();
-            if (options.isPresent()) {
-                handleInboundRandomTeleport(teleporter, teleport, options.get());
-                return;
-            }
-
-            completeInboundTeleport(teleporter, teleport);
-        });
+        plugin.getDatabase().getCurrentTeleport(teleporter).ifPresent(teleport -> executeInbound(teleporter, teleport));
     }
 
-    /**
-     * Prepare an inbound random teleport destination before completing the teleport.
-     *
-     * @param teleporter user to handle the teleport for
-     * @param teleport   the stored teleport to complete
-     * @param options    the RTP options the destination was generated with
-     */
+    // Handle a teleport read before the user was online, returning whether it could be built
+    private boolean handleInboundTeleport(@NotNull OnlineUser teleporter,
+                                          @NotNull Database.PendingTeleport pending) {
+        final Teleport teleport;
+        try {
+            teleport = Teleport.builder(plugin)
+                    .teleporter(teleporter)
+                    .target(pending.target())
+                    .type(pending.type())
+                    .updateLastPosition(false)
+                    .toTeleport();
+        } catch (TeleportationException e) {
+            e.displayMessage(teleporter);
+            return false;
+        }
+        executeInbound(teleporter, teleport);
+        return true;
+    }
+
+    private void executeInbound(@NotNull OnlineUser teleporter, @NotNull Teleport teleport) {
+        if (teleport.getType() == Teleport.Type.RESPAWN) {
+            handleInboundRespawn(teleporter);
+            return;
+        }
+
+        // RTP destinations are validated (and carved) on arrival
+        final Optional<RtpOptions> options = teleport.getType() == Teleport.Type.RANDOM_TELEPORT
+                ? plugin.takePendingRtpOptions(teleporter.getName())
+                : Optional.empty();
+        if (options.isPresent()) {
+            handleInboundRandomTeleport(teleporter, teleport, options.get());
+            return;
+        }
+
+        completeInboundTeleport(teleporter, teleport);
+    }
+
+    // Prepare an inbound RTP destination, then complete the teleport
     private void handleInboundRandomTeleport(@NotNull OnlineUser teleporter, @NotNull Teleport teleport,
                                              @NotNull RtpOptions options) {
         plugin.prepareRtpDestination(teleporter, (Position) teleport.getTarget(), options)
@@ -197,12 +229,7 @@ public abstract class EventListener {
                 });
     }
 
-    /**
-     * Complete an inbound cross-server teleport.
-     *
-     * @param teleporter user to teleport
-     * @param teleport   the stored teleport to complete
-     */
+    // Complete an inbound cross-server teleport
     private void completeInboundTeleport(@NotNull OnlineUser teleporter, @NotNull Teleport teleport) {
         try {
             teleporter.teleportLocally(
@@ -212,7 +239,7 @@ public abstract class EventListener {
         } catch (TeleportationException e) {
             e.displayMessage(teleporter);
         }
-        plugin.getDatabase().clearCurrentTeleport(teleporter);
+        plugin.runAsync(() -> plugin.getDatabase().clearCurrentTeleport(teleporter));
         teleport.displayTeleportingComplete(teleporter);
         teleporter.handleInvulnerability();
     }

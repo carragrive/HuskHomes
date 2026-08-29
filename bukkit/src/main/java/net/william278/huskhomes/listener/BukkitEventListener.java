@@ -59,6 +59,15 @@ public class BukkitEventListener extends EventListener implements Listener {
         getPlugin().getServer().getPluginManager().registerEvents(this, getPlugin());
     }
 
+    // Read any pending cross-server teleport during the handshake, so the join handler doesn't wait on the database
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onAsyncPlayerPreLogin(AsyncPlayerPreLoginEvent event) {
+        if (event.getLoginResult() != AsyncPlayerPreLoginEvent.Result.ALLOWED) {
+            return;
+        }
+        getPlugin().prefetchInboundTeleport(event.getUniqueId());
+    }
+
     @EventHandler(priority = EventPriority.NORMAL)
     public void onPlayerJoin(PlayerJoinEvent event) {
         getPlugin().getOnlineUserMap().remove(event.getPlayer().getUniqueId());
