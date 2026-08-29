@@ -38,6 +38,7 @@ import net.william278.huskhomes.listener.ListenerProvider;
 import net.william278.huskhomes.manager.ManagerProvider;
 import net.william278.huskhomes.network.Broker;
 import net.william278.huskhomes.network.BrokerProvider;
+import net.william278.huskhomes.network.Message;
 import net.william278.huskhomes.position.Position;
 import net.william278.huskhomes.position.World;
 import net.william278.huskhomes.random.RandomTeleportProvider;
@@ -79,6 +80,25 @@ public interface HuskHomes extends Task.Supplier, EventDispatcher, SavePositionP
     @NotNull
     default Optional<RtpOptions> takePendingRtpOptions(@NotNull String username) {
         return Optional.ofNullable(getPendingRtpOptions().remove(username.toLowerCase(Locale.ENGLISH)));
+    }
+
+    // Check huskhomes.server.<server_id>, if cross_server.permission_restrict_servers is on.
+    // Must run on the user's own server; permissions aren't resolvable remotely
+    default boolean canAccessServer(@NotNull OnlineUser user, @NotNull String server) {
+        if (!getSettings().getCrossServer().isPermissionRestrictServers()
+                || server.equals(getServerName())) {
+            return true;
+        }
+        return user.hasPermission(String.format("huskhomes.server.%s", server.toLowerCase(Locale.ENGLISH)))
+                || user.hasPermission("huskhomes.server.*");
+    }
+
+    @NotNull
+    default Broker.ServerState getServerState(@NotNull String server) {
+        if (server.equals(getServerName())) {
+            return Broker.ServerState.READY;
+        }
+        return getBroker().map(broker -> broker.getServerState(server)).orElse(Broker.ServerState.UNKNOWN);
     }
 
     // Last world per server for each online user, by user UUID; loaded on join so lookups never hit the database
@@ -126,6 +146,7 @@ public interface HuskHomes extends Task.Supplier, EventDispatcher, SavePositionP
         if (pruned > 0) {
             log(Level.INFO, String.format("Pruned %s last world entr%s for worlds that no longer exist",
                     pruned, pruned == 1 ? "y" : "ies"));
+            propagateLastWorldInvalidation();
         }
     }
 
@@ -137,6 +158,50 @@ public interface HuskHomes extends Task.Supplier, EventDispatcher, SavePositionP
                 .removeIf(entry -> entry.getKey().equals(getServerName())
                         && entry.getValue().getUuid().equals(world.getUuid())));
         log(Level.INFO, String.format("Forgot last world entries for deleted world %s", world.getName()));
+        propagateLastWorldInvalidation();
+    }
+
+    // Tell other servers our last worlds changed; their caches only refill on join, so they'd otherwise go stale
+    default void propagateLastWorldInvalidation() {
+        getBroker().ifPresent(broker -> {
+            final OnlineUser sender = getOnlineUsers().stream().findAny().orElse(null);
+            if (sender == null && !broker.canSendWithoutPlayer()) {
+                return;
+            }
+            Message.builder()
+                    .type(Message.MessageType.INVALIDATE_LAST_WORLDS)
+                    .target(Message.TARGET_ALL, Message.TargetType.SERVER)
+                    .build().send(broker, sender);
+        });
+    }
+
+    // A server reconciles its worlds before marking itself ready, so on ready: drop what we cached, then re-read
+    default void handleServerReady(@NotNull String server) {
+        if (server.equals(getServerName())) {
+            return;
+        }
+        getLastWorldCache().values().forEach(worlds -> worlds.remove(server));
+        runAsync(() -> refreshLastWorlds(server));
+    }
+
+    // Re-read a server's stored last worlds into the cache; a pruned entry is removed, not left stale
+    @Blocking
+    default void refreshLastWorlds(@NotNull String server) {
+        if (server.equals(getServerName())) {
+            return;
+        }
+        for (OnlineUser user : getOnlineUsers()) {
+            final Map<String, World> cached = getLastWorldCache().get(user.getUuid());
+            if (cached == null) {
+                continue;
+            }
+            final World world = getDatabase().getLastWorlds(user).get(server);
+            if (world == null) {
+                cached.remove(server);
+            } else {
+                cached.put(server, world);
+            }
+        }
     }
 
     // Get the world a user was last in on a server
@@ -144,6 +209,9 @@ public interface HuskHomes extends Task.Supplier, EventDispatcher, SavePositionP
         // Cache is only written on join and quit, so use the live world for this server
         if (server.equals(getServerName())) {
             return Optional.of(user.getPosition().getWorld());
+        }
+        if (getBroker().map(broker -> broker.getServerState(server) != Broker.ServerState.READY).orElse(false)) {
+            return Optional.empty();
         }
         return Optional.ofNullable(getLastWorldCache().get(user.getUuid())).map(worlds -> worlds.get(server));
     }

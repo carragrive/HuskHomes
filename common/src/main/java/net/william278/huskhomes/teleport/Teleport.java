@@ -115,6 +115,11 @@ public class Teleport implements Completable {
             }
 
             if (plugin.getSettings().getCrossServer().isEnabled()) {
+                final Optional<String> targetServer = plugin.findUserServer(username.name())
+                        .filter(server -> !server.equals(plugin.getServerName()));
+                if (targetServer.isPresent()) {
+                    validateRemoteDestination(teleporter, targetServer.get());
+                }
                 fireEvent((event) -> {
                     performTransactions();
                     plugin.getBroker().ifPresent(b -> Message.builder()
@@ -126,6 +131,12 @@ public class Teleport implements Completable {
             }
 
             throw new TeleportationException(TeleportationException.Type.TARGET_NOT_FOUND, plugin);
+        }
+
+        final Position position = (Position) target;
+        if (plugin.getSettings().getCrossServer().isEnabled()
+                && !position.getServer().equals(plugin.getServerName())) {
+            validateRemoteDestination(teleporter, position.getServer());
         }
 
         fireEvent((event) -> {
@@ -157,6 +168,20 @@ public class Teleport implements Completable {
             plugin.getDatabase().setCurrentTeleport(teleporter, this);
             plugin.getBroker().ifPresent(b -> ((PluginMessageBroker) b).changeServer(teleporter, target.getServer()));
         });
+    }
+
+    private void validateRemoteDestination(@NotNull OnlineUser teleporter, @NotNull String server)
+            throws TeleportationException {
+        if (!plugin.canAccessServer(teleporter, server)) {
+            throw new TeleportationException(TeleportationException.Type.NO_SERVER_ACCESS, plugin);
+        }
+        switch (plugin.getServerState(server)) {
+            case STARTING -> throw new TeleportationException(TeleportationException.Type.SERVER_LOADING, plugin);
+            case STOPPING, UNKNOWN -> throw new TeleportationException(
+                    TeleportationException.Type.SERVER_UNAVAILABLE, plugin);
+            case READY -> {
+            }
+        }
     }
 
     private void completeLocalPositionTeleport(@NotNull OnlineUser teleporter, @NotNull Position target) {

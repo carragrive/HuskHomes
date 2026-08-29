@@ -211,6 +211,10 @@ locales:
     to teleport\n<gray>Return to where you died</gray></#00FB9A>'>[⏪ Teleport…]</hover></click></#00FB9A>
   map_hook_public_homes_marker_set_name: Public Homes
   map_hook_warps_marker_set_name: Warps
+  server_status_ready: Online
+  server_status_starting: Starting
+  server_status_stopping: Stopping
+  server_status_unknown: Unknown
   up_to_date: <bold><#00FB9A>HuskHomesX</#00FB9A></bold> <#00FB9A>| You are running
     the latest version of HuskHomesX (v%1%).</#00FB9A>
   update_available: '<bold><#FF7E5E>HuskHomesX</#FF7E5E></bold> <#FF7E5E>| A new version

@@ -270,7 +270,12 @@ public final class Settings {
                 "Do not change unless you know what you're doing"})
         private String clusterId = "main";
 
-        @Comment("Type of network message broker to ues for cross-server networking (PLUGIN_MESSAGE or REDIS)")
+        @Comment({"Whether players need a permission (huskhomes.server.<server_id>) to be teleported to a server.",
+                "Applies to every cross-server teleport, including /tpa and /tpahere."})
+        private boolean permissionRestrictServers = false;
+
+        @Comment({"Type of network message broker to use for cross-server networking (PLUGIN_MESSAGE or REDIS).",
+                "REDIS also blocks teleport traffic until the destination server has finished loading."})
         private Broker.Type brokerType = Broker.Type.PLUGIN_MESSAGE;
 
         @Comment("Settings for if you're using REDIS as your message broker")
@@ -335,7 +340,7 @@ public final class Settings {
         @Comment("RTP mode (LOCAL or CROSS_SERVER). CROSS_SERVER requires the global Redis cross-server setup.")
         private Mode mode = Mode.LOCAL;
 
-        @Comment("Destination used by /rtp when no destination is specified")
+        @Comment("Destination used by /rtp when no destination is specified")?
         private String defaultDestination = "overworld";
 
         @Comment("Normal distribution settings used to calculate distance from the center")
@@ -421,15 +426,8 @@ public final class Settings {
             private String world = "world";
             private Map<String, Profile> profiles = new LinkedHashMap<>(Map.of("default", new Profile()));
 
-            /**
-             * Select the profile to use for a user, checking conditional profiles from highest to lowest priority
-             * and the {@code default} profile last. A {@code default} profile with no conditions always matches;
-             * one with conditions may reject the user, in which case no profile is returned and the teleport is
-             * refused.
-             *
-             * @param user the user to select a profile for
-             * @return the matched profile, or empty if the user met no profile's conditions
-             */
+            // Conditional profiles by priority, `default` last. A conditionless `default` always matches;
+            // one with conditions may reject the user, leaving no match
             @NotNull
             public CompletableFuture<Optional<Profile>> selectProfile(@NotNull OnlineUser user) {
                 final List<Profile> candidates = new ArrayList<>(profiles.entrySet().stream()
@@ -623,7 +621,7 @@ public final class Settings {
     @NoArgsConstructor
     public static class PlanHookSettings {
 
-        @Comment("Hook into Player Analytics to provide HuskHomes statistics in your web dashboard.")
+        @Comment("Hook into Player Analytics to provide HuskHomesX statistics in your web dashboard.")
         private boolean enabled = true;
 
     }

@@ -25,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 import me.clip.placeholderapi.PlaceholderAPIPlugin;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import net.william278.huskhomes.BukkitHuskHomes;
+import net.william278.huskhomes.network.Broker;
 import net.william278.huskhomes.user.OnlineUser;
 import net.william278.huskhomes.user.SavedUser;
 import org.bukkit.OfflinePlayer;
@@ -32,6 +33,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.Locale;
 
 @PluginHook(
         name = "PlaceholderAPI",
@@ -61,6 +63,9 @@ public class PlaceholderAPIHook extends Hook {
     public static class HuskHomesExpansion extends PlaceholderExpansion {
 
         private static final String LAST_WORLD_PARAM = "last_world_";
+        private static final String RAW_STATUS_PARAM = "raw_status_";
+        private static final String STATUS_PARAM = "status_";
+        private static final String STATUS_LOCALE = "server_status_%s";
         private static final String UNKNOWN_VALUE = "none";
 
         @NotNull
@@ -81,6 +86,12 @@ public class PlaceholderAPIHook extends Hook {
             final OnlineUser player = plugin.getOnlineUser(offlinePlayer.getPlayer());
             if (params.startsWith(LAST_WORLD_PARAM)) {
                 return getLastWorld(player, params.substring(LAST_WORLD_PARAM.length()));
+            }
+            if (params.startsWith(RAW_STATUS_PARAM)) {
+                return getServerState(params.substring(RAW_STATUS_PARAM.length())).name();
+            }
+            if (params.startsWith(STATUS_PARAM)) {
+                return getServerStatus(params.substring(STATUS_PARAM.length()));
             }
             return switch (params) {
                 case "homes_count" -> String.valueOf(plugin.getManager().homes()
@@ -126,6 +137,21 @@ public class PlaceholderAPIHook extends Hook {
             return plugin.getLastWorld(player, server)
                     .map(world -> world.getKey() != null ? world.getKey() : world.getName())
                     .orElse(UNKNOWN_VALUE);
+        }
+
+        // %huskhomes_status_<server>%; the state's locale message, falling back to its keyword
+        @NotNull
+        private String getServerStatus(@NotNull String server) {
+            final Broker.ServerState state = getServerState(server);
+            return plugin.getLocales()
+                    .getRawLocale(String.format(STATUS_LOCALE, state.name().toLowerCase(Locale.ENGLISH)))
+                    .orElseGet(state::name);
+        }
+
+        // Broker readiness; down, unseen and unrecognised servers all read UNKNOWN
+        @NotNull
+        private Broker.ServerState getServerState(@NotNull String server) {
+            return server.isBlank() ? Broker.ServerState.UNKNOWN : plugin.getServerState(server);
         }
 
     }

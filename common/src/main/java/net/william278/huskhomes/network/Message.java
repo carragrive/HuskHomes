@@ -156,6 +156,7 @@ public class Message {
         UPDATE_CACHES,
         REQUEST_RTP_LOCATION,
         RTP_LOCATION,
+        INVALIDATE_LAST_WORLDS,
     }
 
 }

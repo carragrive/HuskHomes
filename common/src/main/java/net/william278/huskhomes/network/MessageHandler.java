@@ -165,6 +165,11 @@ public interface MessageHandler {
                 .buildAndComplete(message.getPayload().getRtpTimed().orElse(true));
     }
 
+    // Re-read cached last worlds for a server that just pruned entries
+    default void handleInvalidateLastWorlds(@NotNull Message message) {
+        getPlugin().runAsync(() -> getPlugin().refreshLastWorlds(message.getSourceServer()));
+    }
+
     default void handleUpdateCaches() {
         getPlugin().getManager().homes().updatePublicHomeCache();
         getPlugin().getManager().warps().updateWarpCache();
