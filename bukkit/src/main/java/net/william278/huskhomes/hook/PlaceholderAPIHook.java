@@ -47,7 +47,8 @@ public class PlaceholderAPIHook extends Hook {
     public void load() {
         new HuskHomesExpansion(
                 (BukkitHuskHomes) plugin,
-                plugin.getPluginVersion().toStringWithoutMetadata()
+                plugin.getPluginVersion().toStringWithoutMetadata(),
+                String.join(", ", ((BukkitHuskHomes) plugin).getPluginMeta().getAuthors())
         ).register();
     }
 
@@ -59,11 +60,14 @@ public class PlaceholderAPIHook extends Hook {
     @RequiredArgsConstructor
     public static class HuskHomesExpansion extends PlaceholderExpansion {
 
+        private static final String LAST_WORLD_PARAM = "last_world_";
+        private static final String UNKNOWN_VALUE = "none";
+
         @NotNull
         @Getter(AccessLevel.NONE)
         private final BukkitHuskHomes plugin;
         private final String version;
-        private final String author = "William278";
+        private final String author;
         private final String identifier = "huskhomes";
 
         @Override
@@ -75,6 +79,9 @@ public class PlaceholderAPIHook extends Hook {
 
             // Return the requested data
             final OnlineUser player = plugin.getOnlineUser(offlinePlayer.getPlayer());
+            if (params.startsWith(LAST_WORLD_PARAM)) {
+                return getLastWorld(player, params.substring(LAST_WORLD_PARAM.length()));
+            }
             return switch (params) {
                 case "homes_count" -> String.valueOf(plugin.getManager().homes()
                         .getUserHomes()
@@ -108,6 +115,17 @@ public class PlaceholderAPIHook extends Hook {
         @NotNull
         private String getBooleanValue(final boolean bool) {
             return bool ? PlaceholderAPIPlugin.booleanTrue() : PlaceholderAPIPlugin.booleanFalse();
+        }
+
+        // %huskhomes_last_world_<server>%; namespaced key where known, else UNKNOWN_VALUE. Read from cache, not DB
+        @NotNull
+        private String getLastWorld(@NotNull OnlineUser player, @NotNull String server) {
+            if (server.isBlank()) {
+                return UNKNOWN_VALUE;
+            }
+            return plugin.getLastWorld(player, server)
+                    .map(world -> world.getKey() != null ? world.getKey() : world.getName())
+                    .orElse(UNKNOWN_VALUE);
         }
 
     }

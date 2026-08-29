@@ -39,6 +39,7 @@ import org.jetbrains.annotations.Blocking;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.logging.Level;
 
@@ -59,10 +60,22 @@ public abstract class EventListener {
      * @param onlineUser the joining {@link OnlineUser}
      */
     protected final void handlePlayerJoin(@NotNull OnlineUser onlineUser) {
+        final Map<String, World> lastWorldSession = plugin.beginLastWorldCache(onlineUser);
+        final World currentWorld = onlineUser.getPosition().getWorld();
+        lastWorldSession.put(plugin.getServerName(), currentWorld);
+
         plugin.runAsync(() -> {
             // Ensure the user is in the database
             plugin.getDatabase().ensureUser(onlineUser);
             plugin.getCurrentlyOnWarmup().remove(onlineUser.getUuid());
+
+            // Cache last worlds per server, and record this one
+            final Optional<Map<String, World>> cachedWorlds = plugin.cacheLastWorlds(onlineUser, lastWorldSession);
+            if (cachedWorlds.isEmpty()
+                    || plugin.getLastWorldCache().get(onlineUser.getUuid()) != cachedWorlds.get()) {
+                return;
+            }
+            plugin.persistLastWorld(onlineUser, cachedWorlds.get());
 
             // Handle cross-server checks
             if (plugin.getSettings().getCrossServer().isEnabled()) {
@@ -106,12 +119,15 @@ public abstract class EventListener {
      * @param online the leaving {@link OnlineUser}
      */
     protected final void handlePlayerLeave(@NotNull OnlineUser online) {
+        final Position offlinePosition = online.getPosition();
         plugin.getOnlineUserMap().remove(online.getUuid());
+        plugin.getLastWorldCache().remove(online.getUuid());
         online.removeInvulnerabilityIfPermitted();
 
         plugin.runAsync(() -> {
-            // Set offline position
-            plugin.getDatabase().setOfflinePosition(online, online.getPosition());
+            // Set offline position and the last world on this server
+            plugin.getDatabase().setOfflinePosition(online, offlinePosition);
+            plugin.getDatabase().setLastWorld(online, plugin.getServerName(), offlinePosition.getWorld());
 
             // Remove this user's home cache
             plugin.getManager().homes().removeUserHomes(online);

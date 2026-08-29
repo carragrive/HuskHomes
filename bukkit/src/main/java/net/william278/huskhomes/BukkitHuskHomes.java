@@ -56,8 +56,6 @@ import net.william278.huskhomes.util.BukkitTask;
 import net.william278.huskhomes.util.UnsafeBlocks;
 import net.william278.toilet.BukkitToilet;
 import net.william278.toilet.Toilet;
-import org.bstats.bukkit.Metrics;
-import org.bstats.charts.SimplePie;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -91,6 +89,7 @@ public class BukkitHuskHomes extends JavaPlugin implements HuskHomes, BukkitTask
     private final Map<UUID, OnlineUser> onlineUserMap = Maps.newHashMap();
     private final Map<String, List<User>> globalUserList = Maps.newConcurrentMap();
     private final Map<String, RtpOptions> pendingRtpOptions = Maps.newConcurrentMap();
+    private final Map<UUID, Map<String, World>> lastWorldCache = Maps.newConcurrentMap();
     private final List<Command> commands = Lists.newArrayList();
 
     @Setter
@@ -151,33 +150,6 @@ public class BukkitHuskHomes extends JavaPlugin implements HuskHomes, BukkitTask
     @Override
     public void loadAPI() {
         HuskHomesAPI.register(this);
-    }
-
-    @Override
-    public void loadMetrics() {
-        try {
-            final Metrics metrics = new Metrics(this, BSTATS_BUKKIT_PLUGIN_ID);
-            metrics.addCustomChart(new SimplePie("bungee_mode",
-                    () -> Boolean.toString(getSettings().getCrossServer().isEnabled()))
-            );
-            metrics.addCustomChart(new SimplePie("language",
-                    () -> getSettings().getLanguage().toLowerCase())
-            );
-            metrics.addCustomChart(new SimplePie("database_type",
-                    () -> getSettings().getDatabase().getType().getDisplayName())
-            );
-            metrics.addCustomChart(new SimplePie("using_economy",
-                    () -> Boolean.toString(isUsingEconomy()))
-            );
-            metrics.addCustomChart(new SimplePie("using_map",
-                    () -> Boolean.toString(getSettings().getMapHook().isEnabled()))
-            );
-            getBroker().ifPresent(broker -> metrics.addCustomChart(new SimplePie("messenger_type",
-                    () -> settings.getCrossServer().getBrokerType().getDisplayName()
-            )));
-        } catch (Throwable e) {
-            log(Level.WARNING, "Failed to register plugin metrics", e);
-        }
     }
 
     // Register the event listener
