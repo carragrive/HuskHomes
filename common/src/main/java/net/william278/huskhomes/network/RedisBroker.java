@@ -19,9 +19,12 @@
 
 package net.william278.huskhomes.network;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import lombok.AllArgsConstructor;
 import net.william278.huskhomes.HuskHomes;
 import net.william278.huskhomes.user.OnlineUser;
+import net.william278.huskhomes.util.Task;
 import org.jetbrains.annotations.Blocking;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -30,7 +33,11 @@ import redis.clients.jedis.exceptions.JedisException;
 import redis.clients.jedis.util.Pool;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 
 import static net.william278.huskhomes.config.Settings.CrossServerSettings.RedisSettings;
@@ -40,7 +47,16 @@ import static net.william278.huskhomes.config.Settings.CrossServerSettings.Redis
  */
 public class RedisBroker extends PluginMessageBroker {
 
+    private static final int STATUS_TTL_SECONDS = 15;
+    private static final long STATUS_HEARTBEAT_TICKS = 100L;
+
     private final Subscriber subscriber;
+    private final UUID instanceId = UUID.randomUUID();
+    private final Map<String, StatusLease> serverStates = new ConcurrentHashMap<>();
+    private final Object statusLock = new Object();
+    private Task.Repeating heartbeatTask;
+    private volatile ServerState state = ServerState.STARTING;
+    private volatile boolean closed;
 
     public RedisBroker(@NotNull HuskHomes plugin) {
         super(plugin);
@@ -67,6 +83,10 @@ public class RedisBroker extends PluginMessageBroker {
         final Thread thread = new Thread(subscriber::subscribe, "huskhomes:redis_subscriber");
         thread.setDaemon(true);
         thread.start();
+
+        subscriber.claimStatus(state, instanceId);
+        this.heartbeatTask = plugin.getRepeatingTask(this::publishStatus, STATUS_HEARTBEAT_TICKS);
+        heartbeatTask.run();
     }
 
     @NotNull
@@ -119,10 +139,72 @@ public class RedisBroker extends PluginMessageBroker {
     }
 
     @Override
+    @NotNull
+    public ServerState getServerState(@NotNull String server) {
+        if (server.equals(getServer())) {
+            return state;
+        }
+        final StatusLease lease = serverStates.get(server);
+        if (lease == null || lease.expiresAt() <= System.currentTimeMillis()) {
+            serverStates.remove(server, lease);
+            return ServerState.UNKNOWN;
+        }
+        return lease.state();
+    }
+
+    @Override
+    public void markReady() {
+        this.state = ServerState.READY;
+        publishStatus();
+    }
+
+    @Override
+    public boolean canSendWithoutPlayer() {
+        return true;
+    }
+
+    private void publishStatus() {
+        synchronized (statusLock) {
+            if (!closed && subscriber.refreshStatus(state, instanceId)) {
+                updateServerStatus(getServer(), state, instanceId);
+            }
+        }
+    }
+
+    // Record a server's readiness. A remote server becoming ready, or returning under a new instance ID, restarted
+    private void updateServerStatus(@NotNull String server, @NotNull ServerState state, @NotNull UUID instance) {
+        final StatusLease previous = serverStates.put(server, new StatusLease(
+                state,
+                instance,
+                System.currentTimeMillis() + STATUS_TTL_SECONDS * 1000L
+        ));
+        if (server.equals(getServer()) || state != ServerState.READY) {
+            return;
+        }
+        if (previous == null || previous.state() != ServerState.READY || !previous.instance().equals(instance)) {
+            plugin.handleServerReady(server);
+        }
+    }
+
+    @Override
     @Blocking
     public void close() {
+        if (heartbeatTask != null) {
+            heartbeatTask.cancel();
+        }
+        this.state = ServerState.STOPPING;
+        synchronized (statusLock) {
+            if (closed) {
+                return;
+            }
+            subscriber.refreshStatus(state, instanceId);
+            closed = true;
+        }
         super.close();
         subscriber.disable();
+    }
+
+    private record StatusLease(@NotNull ServerState state, @NotNull UUID instance, long expiresAt) {
     }
 
 
@@ -136,6 +218,7 @@ public class RedisBroker extends PluginMessageBroker {
         private Pool<Jedis> jedisPool;
         private boolean enabled;
         private boolean reconnected;
+        private final AtomicBoolean statusWriteFailed = new AtomicBoolean();
 
         private Subscriber(@NotNull RedisBroker broker, @NotNull String channel) {
             this.broker = broker;
@@ -163,6 +246,52 @@ public class RedisBroker extends PluginMessageBroker {
             }
         }
 
+        private void claimStatus(@NotNull ServerState state, @NotNull UUID instanceId) {
+            writeStatus(state, instanceId, true);
+        }
+
+        private boolean refreshStatus(@NotNull ServerState state, @NotNull UUID instanceId) {
+            return writeStatus(state, instanceId, false);
+        }
+
+        private boolean writeStatus(@NotNull ServerState state, @NotNull UUID instanceId, boolean claim) {
+            final String key = "%s:server:%s:status".formatted(channel, broker.getServer());
+            final String value = "%s|%s".formatted(instanceId, state);
+            try (Jedis jedis = jedisPool.getResource()) {
+                final boolean updated;
+                if (claim) {
+                    jedis.setex(key, STATUS_TTL_SECONDS, value);
+                    updated = true;
+                } else {
+                    final Object result = jedis.eval("""
+                            local current = redis.call('get', KEYS[1])
+                            if not current or string.sub(current, 1, string.len(ARGV[1])) == ARGV[1] then
+                                redis.call('setex', KEYS[1], ARGV[2], ARGV[3])
+                                return 1
+                            end
+                            return 0
+                            """, 1, key, instanceId.toString(), Integer.toString(STATUS_TTL_SECONDS), value);
+                    updated = Long.valueOf(1L).equals(result);
+                }
+                if (updated) {
+                    final JsonObject status = new JsonObject();
+                    status.addProperty("server", broker.getServer());
+                    status.addProperty("state", state.name());
+                    status.addProperty("instance", instanceId.toString());
+                    jedis.publish(statusChannel(), status.toString());
+                }
+                if (statusWriteFailed.getAndSet(false)) {
+                    broker.plugin.log(Level.INFO, "Redis server readiness publishing recovered");
+                }
+                return updated;
+            } catch (JedisException e) {
+                if (statusWriteFailed.compareAndSet(false, true)) {
+                    broker.plugin.log(Level.WARNING, "Failed to publish Redis server readiness", e);
+                }
+                return false;
+            }
+        }
+
         @Blocking
         private void subscribe() {
             while (enabled && !Thread.interrupted() && jedisPool != null && !jedisPool.isClosed()) {
@@ -172,7 +301,7 @@ public class RedisBroker extends PluginMessageBroker {
                     }
 
                     // Subscribe to channel and lock the thread
-                    jedis.subscribe(this, channel);
+                    jedis.subscribe(this, channel, statusChannel());
                 } catch (Throwable t) {
                     // Thread was unlocked due error
                     onThreadUnlock(t);
@@ -209,6 +338,20 @@ public class RedisBroker extends PluginMessageBroker {
 
         @Override
         public void onMessage(@NotNull String channel, @NotNull String encoded) {
+            if (channel.equals(statusChannel())) {
+                try {
+                    final JsonObject status = JsonParser.parseString(encoded).getAsJsonObject();
+                    broker.updateServerStatus(
+                            status.get("server").getAsString(),
+                            ServerState.valueOf(status.get("state").getAsString()),
+                            UUID.fromString(status.get("instance").getAsString())
+                    );
+                } catch (RuntimeException e) {
+                    broker.plugin.log(Level.WARNING, "Received invalid Redis server readiness update");
+                }
+                return;
+            }
+
             final Message message;
             try {
                 message = broker.plugin.getMessageFromJson(encoded);
@@ -237,6 +380,11 @@ public class RedisBroker extends PluginMessageBroker {
                         .findAny()
                         .ifPresent(receiver -> broker.handle(receiver, message));
             }
+        }
+
+        @NotNull
+        private String statusChannel() {
+            return channel + ":server_status";
         }
     }
 

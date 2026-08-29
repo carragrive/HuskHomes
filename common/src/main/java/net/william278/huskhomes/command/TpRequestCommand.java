@@ -67,6 +67,31 @@ public class TpRequestCommand extends InGameCommand implements UserListTabComple
             return;
         }
 
+        if (plugin.getSettings().getCrossServer().isEnabled()) {
+            final Optional<String> targetServer = plugin.findUserServer(target)
+                    .filter(server -> !server.equals(plugin.getServerName()));
+            if (targetServer.isPresent()) {
+                switch (plugin.getServerState(targetServer.get())) {
+                    case STARTING -> {
+                        plugin.getLocales().getLocale("error_server_loading").ifPresent(onlineUser::sendMessage);
+                        return;
+                    }
+                    case STOPPING, UNKNOWN -> {
+                        plugin.getLocales().getLocale("error_invalid_server").ifPresent(onlineUser::sendMessage);
+                        return;
+                    }
+                    case READY -> {
+                    }
+                }
+                // /tpa moves the sender; /tpahere is checked on the target's server when accepted
+                if (requestType == TeleportRequest.Type.TPA
+                        && !plugin.canAccessServer(onlineUser, targetServer.get())) {
+                    plugin.getLocales().getLocale("error_no_server_access").ifPresent(onlineUser::sendMessage);
+                    return;
+                }
+            }
+        }
+
         // Validate economy check
         if (!plugin.validateTransaction(onlineUser, TransactionResolver.Action.SEND_TELEPORT_REQUEST)) {
             return;

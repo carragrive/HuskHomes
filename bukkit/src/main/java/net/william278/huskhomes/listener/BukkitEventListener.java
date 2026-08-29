@@ -168,7 +168,10 @@ public class BukkitEventListener extends EventListener implements Listener {
         final Set<UUID> loadedWorlds = getPlugin().getWorlds().stream()
                 .map(World::getUuid)
                 .collect(Collectors.toUnmodifiableSet());
-        getPlugin().runAsync(() -> getPlugin().reconcileLastWorlds(loadedWorlds));
+        getPlugin().runAsync(() -> {
+            getPlugin().reconcileLastWorlds(loadedWorlds);
+            getPlugin().getBroker().ifPresent(broker -> broker.markReady());
+        });
     }
 
     @Override

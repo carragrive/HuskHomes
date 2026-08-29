@@ -57,6 +57,7 @@ public abstract class Broker implements MessageHandler {
             case UPDATE_WARP -> handleUpdateWarp(message, receiver);
             case UPDATE_CACHES -> handleUpdateCaches();
             case RTP_LOCATION -> handleRtpLocation(message, receiver);
+            case INVALIDATE_LAST_WORLDS -> handleInvalidateLastWorlds(message);
             default -> plugin.log(Level.SEVERE, "Received unknown message type: " + message.getType());
         }
     }
@@ -80,6 +81,21 @@ public abstract class Broker implements MessageHandler {
      * Terminate the broker
      */
     public abstract void close();
+
+    // Readiness of a server; brokers without presence support treat every destination as ready
+    @NotNull
+    public ServerState getServerState(@NotNull String server) {
+        return ServerState.READY;
+    }
+
+    // Mark this server ready to receive teleports
+    public void markReady() {
+    }
+
+    // Whether a message can be sent with no player to carry it; plugin messaging rides a player connection
+    public boolean canSendWithoutPlayer() {
+        return false;
+    }
 
     /**
      * Get the sub-channel ID for broker communications
@@ -129,6 +145,13 @@ public abstract class Broker implements MessageHandler {
         Type(@NotNull String displayName) {
             this.displayName = displayName;
         }
+    }
+
+    public enum ServerState {
+        STARTING,
+        READY,
+        STOPPING,
+        UNKNOWN
     }
 
 }

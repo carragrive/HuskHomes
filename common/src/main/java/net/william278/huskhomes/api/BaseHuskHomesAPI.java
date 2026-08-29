@@ -839,6 +839,9 @@ public class BaseHuskHomesAPI {
                         || plugin.getSettings().getCrossServer().getBrokerType() != Broker.Type.REDIS) {
                     throw new IllegalStateException("Cross-server RTP requires the Redis broker");
                 }
+                if (plugin.getServerState(server) != Broker.ServerState.READY) {
+                    throw new IllegalStateException("Cross-server RTP destination is not ready: " + server);
+                }
                 Message.builder()
                         .target(server, Message.TargetType.SERVER)
                         .type(Message.MessageType.REQUEST_RTP_LOCATION)
