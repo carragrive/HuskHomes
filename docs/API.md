@@ -92,7 +92,7 @@ main: net.william278.myplugin.MyPlugin
 author: William278
 description: 'A plugin that hooks with the HuskHomes API!'
 softdepend: # Or, use 'depend' here
-  - HuskHomes
+  - HuskHomesX
 ```
 
 ## 3 Next steps

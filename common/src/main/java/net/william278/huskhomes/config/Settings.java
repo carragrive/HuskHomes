@@ -49,8 +49,8 @@ public final class Settings {
 
     static final String CONFIG_HEADER = """
             ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-            ┃       HuskHomes Config       ┃
-            ┃    Developed by William278   ┃
+            ┃      HuskHomesX Config       ┃
+            ┃  By William278 & carragrive  ┃
             ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
             ┣╸ Information: https://william278.net/project/huskhomes/
             ┣╸ Config Help: https://william278.net/docs/huskhomes/config-files/
@@ -59,9 +59,6 @@ public final class Settings {
     // Top-level settings
     @Comment("Locale of the default language file to use. Docs: https://william278.net/docs/huskhomes/translations")
     private String language = Locales.DEFAULT_LOCALE;
-
-    @Comment("Whether to automatically check for plugin updates on startup")
-    private boolean checkForUpdates = true;
 
     // Database settings
     @Comment("Database settings")
@@ -269,7 +266,7 @@ public final class Settings {
         @Comment("Whether to enable cross-server mode for teleporting across your proxy network.")
         private boolean enabled = false;
 
-        @Comment({"The cluster ID, for if you're networking multiple separate groups of HuskHomes-enabled servers.",
+        @Comment({"The cluster ID, for if you're networking multiple separate groups of HuskHomesX-enabled servers.",
                 "Do not change unless you know what you're doing"})
         private String clusterId = "main";
 

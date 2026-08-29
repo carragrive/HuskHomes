@@ -5,7 +5,7 @@ pluginManagement {
     }
 }
 
-rootProject.name = 'HuskHomes'
+rootProject.name = 'HuskHomesX'
 include(
         'common',
         'bukkit',

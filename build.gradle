@@ -2,12 +2,11 @@ import org.apache.tools.ant.filters.ReplaceTokens
 
 plugins {
     id 'com.gradleup.shadow' version '9.0.0-beta17'
-    id 'org.ajoberstar.grgit' version '5.3.3'
     id 'java'
 }
 
 group 'net.william278'
-version "$ext.plugin_version${versionMetadata()}"
+version "$ext.plugin_version"
 description "$ext.plugin_description"
 defaultTasks 'build'
 
@@ -89,24 +88,4 @@ subprojects {
 
 clean.delete "$rootDir/target"
 
-logger.lifecycle("Building HuskHomes ${version} by William278")
-
-@SuppressWarnings('GrMethodMayBeStatic')
-def versionMetadata() {
-    // Require grgit
-    if (grgit == null) {
-        return '-unknown'
-    }
-
-    // If unclean, return the last commit hash with -indev
-    if (!grgit.status().clean) {
-        return '-' + grgit.head().abbreviatedId + '-indev'
-    }
-
-    // Otherwise if this matches a tag, return nothing
-    def tag = grgit.tag.list().find { it.commit.id == grgit.head().id }
-    if (tag != null) {
-        return ''
-    }
-    return '-' + grgit.head().abbreviatedId
-}
+logger.lifecycle("Building HuskHomesX ${version} by William278 and carragrive")

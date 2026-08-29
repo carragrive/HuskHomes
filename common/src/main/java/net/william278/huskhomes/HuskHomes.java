@@ -96,11 +96,11 @@ public interface HuskHomes extends Task.Supplier, EventDispatcher, SavePositionP
             disablePlugin();
             return;
         } catch (Throwable e) {
-            log(Level.SEVERE, "An error occurred whilst loading HuskHomes", e);
+            log(Level.SEVERE, "An error occurred whilst loading HuskHomesX", e);
             disablePlugin();
             return;
         }
-        log(Level.INFO, String.format("Successfully loaded HuskHomes v%s", getPluginVersion()));
+        log(Level.INFO, String.format("Successfully loaded HuskHomesX v%s", getPluginVersion()));
     }
 
     /**
@@ -122,11 +122,11 @@ public interface HuskHomes extends Task.Supplier, EventDispatcher, SavePositionP
                 loadMetrics();
             }
         } catch (Throwable e) {
-            log(Level.SEVERE, "An error occurred whilst enabling HuskHomes", e);
+            log(Level.SEVERE, "An error occurred whilst enabling HuskHomesX", e);
             disablePlugin();
             return;
         }
-        log(Level.INFO, String.format("Successfully enabled HuskHomes v%s", getPluginVersion()));
+        log(Level.INFO, String.format("Successfully enabled HuskHomesX v%s", getPluginVersion()));
         checkForUpdates();
         loadAfterLoadHooks();
     }
@@ -137,7 +137,7 @@ public interface HuskHomes extends Task.Supplier, EventDispatcher, SavePositionP
      * @since 4.8
      */
     default void shutdown() {
-        log(Level.INFO, String.format("Disabling HuskHomes v%s...", getPluginVersion()));
+        log(Level.INFO, String.format("Disabling HuskHomesX v%s...", getPluginVersion()));
         try {
             unloadHooks(PluginHook.Register.values());
             closeDatabase();
@@ -145,9 +145,9 @@ public interface HuskHomes extends Task.Supplier, EventDispatcher, SavePositionP
             cancelTasks();
             unloadAPI();
         } catch (Throwable e) {
-            log(Level.SEVERE, "An error occurred whilst disabling HuskHomes", e);
+            log(Level.SEVERE, "An error occurred whilst disabling HuskHomesX", e);
         }
-        log(Level.INFO, String.format("Successfully disabled HuskHomes v%s", getPluginVersion()));
+        log(Level.INFO, String.format("Successfully disabled HuskHomesX v%s", getPluginVersion()));
     }
 
     /**

@@ -40,7 +40,7 @@ public class MyPlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        if (Bukkit.getPluginManager().getPlugin("HuskHomes") != null) {
+        if (Bukkit.getPluginManager().getPlugin("HuskHomesX") != null) {
             this.huskHomesHook = new HuskHomesAPIHook();
         }
     }
