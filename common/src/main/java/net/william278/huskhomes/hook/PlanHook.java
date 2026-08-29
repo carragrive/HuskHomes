@@ -84,7 +84,7 @@ public class PlanHook extends Hook {
     }
 
     @PluginInfo(
-            name = "HuskHomes",
+            name = "HuskHomesX",
             iconName = "home",
             iconFamily = Family.SOLID,
             color = Color.LIGHT_BLUE

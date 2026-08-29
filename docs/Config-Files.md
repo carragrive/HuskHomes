@@ -1,7 +1,7 @@
 This page contains the configuration structure for HuskHomes.
 
 ## Configuration structure
-📁 `plugins/HuskHomes/`
+📁 `plugins/HuskHomesX/`
   - 📄 `config.yml`: General plugin configuration
   - 📄 `server.yml`: (Cross-server setups only) Server ID configuration
   - 📄 `spawn.yml`: Local saved server spawn position. Use /setspawn to generate this file
@@ -14,8 +14,8 @@ This page contains the configuration structure for HuskHomes.
 
 ```yaml
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃       HuskHomes Config       ┃
-# ┃    Developed by William278   ┃
+# ┃      HuskHomesX Config       ┃
+# ┃  By William278 & carragrive  ┃
 # ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 # ┣╸ Information: https://william278.net/project/huskhomes/
 # ┣╸ Config Help: https://william278.net/docs/huskhomes/config-files/
@@ -23,8 +23,6 @@ This page contains the configuration structure for HuskHomes.
 
 # Locale of the default language file to use. Docs: https://william278.net/docs/huskhomes/translations
 language: en-gb
-# Whether to automatically check for plugin updates on startup
-check_for_updates: true
 # Database settings
 database:
   # Type of database to use (SQLITE, H2, MYSQL, MARIADB, or POSTGRESQL)
@@ -47,6 +45,7 @@ database:
     timeout: 20000
   # Names of tables to use on your database. Don't modify this unless you know what you're doing!
   table_names:
+    META_DATA: huskhomes_metadata
     PLAYER_DATA: huskhomes_users
     PLAYER_COOLDOWNS_DATA: huskhomes_user_cooldowns
     POSITION_DATA: huskhomes_position_data
@@ -54,6 +53,7 @@ database:
     HOME_DATA: huskhomes_homes
     WARP_DATA: huskhomes_warps
     TELEPORT_DATA: huskhomes_teleports
+    LAST_WORLD_DATA: huskhomes_last_worlds
 # General settings
 general:
   # The maximum homes a user can create. Override with the huskhomes.max_homes.<number> permission.
@@ -126,7 +126,11 @@ cross_server:
   # The cluster ID, for if you're networking multiple separate groups of HuskHomes-enabled servers.
   # Do not change unless you know what you're doing
   cluster_id: main
-  # Type of network message broker to ues for cross-server networking (PLUGIN_MESSAGE or REDIS)
+  # Whether players need a permission (huskhomes.server.<server_id>) to be teleported to a server.
+  # Applies to every cross-server teleport, including /tpa and /tpahere.
+  permission_restrict_servers: false
+  # Type of network message broker to use for cross-server networking (PLUGIN_MESSAGE or REDIS).
+  # REDIS also blocks teleport traffic until the destination server has finished loading.
   broker_type: PLUGIN_MESSAGE
   # Settings for if you're using REDIS as your message broker
   redis:
@@ -257,8 +261,8 @@ world_uuid: 00000000-0000-0000-0000-000000000000
 This file is only present if your server uses cross-server mode to run HuskHomes on a proxy network.
 ```yaml
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃     HuskHomes - Server ID    ┃
-# ┃    Developed by William278   ┃
+# ┃    HuskHomesX - Server ID    ┃
+# ┃  By William278 & carragrive  ┃
 # ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 # ┣╸ This file should contain the ID of this server as defined in your proxy config.
 # ┣╸ If you join it using /server alpha, then set it to 'alpha' (case-sensitive)

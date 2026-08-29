@@ -1,6 +1,6 @@
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃       HuskHomes Config       ┃
-# ┃    Developed by William278   ┃
+# ┃      HuskHomesX Config       ┃
+# ┃  By William278 & carragrive  ┃
 # ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 # ┣╸ Information: https://william278.net/project/huskhomes/
 # ┣╸ Config Help: https://william278.net/docs/huskhomes/config-files/
@@ -114,7 +114,7 @@ general:
 cross_server:
   # Whether to enable cross-server mode for teleporting across your proxy network.
   enabled: true
-  # The cluster ID, for if you're networking multiple separate groups of HuskHomes-enabled servers.
+  # The cluster ID, for if you're networking multiple separate groups of HuskHomesX-enabled servers.
   # Do not change unless you know what you're doing
   cluster_id: main
   # Type of network message broker to ues for cross-server networking (PLUGIN_MESSAGE or REDIS)
@@ -263,7 +263,7 @@ economy:
   free_home_slots: 5
 # Plan hook settings. Docs: https://william278.net/docs/huskhomes/plan-hook
 plan:
-  # Hook into Player Analytics to provide HuskHomes statistics in your web dashboard.
+  # Hook into Player Analytics to provide HuskHomesX statistics in your web dashboard.
   enabled: true
 # LuckPerms hook settings. Docs: https://william278.net/docs/huskhomes/luckperms-hook
 luckperms:

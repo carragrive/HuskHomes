@@ -1,6 +1,10 @@
-name: 'HuskHomes'
+name: 'HuskHomesX'
 description: '${description}'
-author: 'William278'
+authors:
+  - 'William278'
+  - 'carragrive'
+provides:
+  - 'HuskHomes'
 website: 'https://william278.net/'
 main: 'net.william278.huskhomes.PaperHuskHomes'
 loader: 'net.william278.huskhomes.PaperHuskHomesLoader'

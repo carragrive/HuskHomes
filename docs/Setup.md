@@ -8,7 +8,7 @@ This will walk you through installing HuskHomes on your Paper server or proxy ne
 * (For optional [[Redis support]]) A Redis database (v5.0+)
 
 ## Download HuskHomes for your server
-Download the `HuskHomes-Paper` jar from the [latest release page](https://github.com/WiIIiam278/HuskHomes/releases/latest).
+Download the `HuskHomesX-Paper` jar from the [latest release page](https://github.com/WiIIiam278/HuskHomes/releases/latest).
 
 ## Single-server Setup Instructions
 These instructions are for installing HuskHomes on one Paper server.
@@ -31,9 +31,9 @@ These instructions are for installing HuskHomes on multiple Paper servers and ne
 - You do not need to install HuskHomes as a proxy plugin.
 ### 2. Restart the server and configure
 - Start, then stop every server to let HuskHomes generate the config file.
-- Advanced users can create one `config.yml` and link it into each `/plugins/HuskHomes/` folder.
+- Advanced users can create one `config.yml` and link it into each `/plugins/HuskHomesX/` folder.
 ### 3. Configure servers to use cross-server mode
-- Navigate to the HuskHomes [config](Config-Files) file on each server (`plugins/HuskHomes/config.yml`).
+- Navigate to the HuskHomesX [config](Config-Files) file on each server (`plugins/HuskHomesX/config.yml`).
 - Under `database`, set `type` to `MYSQL`, `MARIADB` or `POSTGRESQL` (depending on which type of database you wish to use)
 - Under `mysql`/`credentials`, enter the credentials of your MySQL, MariaDB or PostgreSQL database server.
 - Scroll down and look for the `cross_server` section. Set `enabled` to `true`.

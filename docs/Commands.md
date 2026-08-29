@@ -380,12 +380,6 @@ This is a table of HuskHomes commands, how to use them, and their required permi
             <td align="center">✅</td>
         </tr>
         <tr>
-            <td><code>/huskhomes update</code></td>
-            <td>Check for plugin updates</td>
-            <td><code>huskhomes.command.huskhomes.update</code></td>
-            <td align="center">❌</td>
-        </tr>
-        <tr>
             <td><code>/huskhomes reload</code></td>
             <td>Reload the plugin locales and config file</td>
             <td><code>huskhomes.command.huskhomes.reload</code></td>
@@ -529,6 +523,25 @@ feet. `include_corners: false` leaves the four horizontal corners of the area in
 protection plugins can veto the destination. Position search already skips destinations containing unbreakable blocks
 (bedrock and similar); if a veto or a block change still blocks the carve at teleport time, nothing is broken and the
 player is sent the `error_rtp_destination_obstructed` message instead.
+
+## Restricting servers
+
+Set `cross_server.permission_restrict_servers: true` and a player must hold `huskhomes.server.<server_id>` (or
+`huskhomes.server.*`) to be teleported to that server. The ID is the one in that backend's `server.yml`, matched
+case-insensitively. Off by default; turning it on with no nodes granted stops every cross-server teleport.
+
+The check covers every teleport HuskHomes performs across servers — `/tpa`, `/tpahere`, `/tphere`, cross-server homes
+and warps, `/back`, global `/spawn`, remote `/rtp`, and API teleports — because they all converge on the same transfer
+step. It applies to the player **being moved**, not the one running the command, so `/tpa` checks the requester and
+`/tpahere` checks whoever accepts. A refused teleport sends `error_no_server_access` and nothing else happens.
+
+Permissions can only be read on the server a player is connected to, so enforcement necessarily happens at teleport
+time. `/tpa` also pre-checks when the request is sent (the sender is local, and their target's server is known from the
+global player list) and refuses immediately. `/tpahere` cannot: the player who would move is on another server, so they
+receive the request and see the refusal when they accept.
+
+This closes the HuskHomes transfer path only. Any other plugin that can move players between servers is unaffected, so
+keep your proxy-side permission check as the real boundary.
 
 ## Bypass permission nodes
 
