@@ -360,6 +360,8 @@ locales:
     teleport destination was obstructed and could not be cleared.</#FF7E5E>
   error_rtp_conditions_not_met: <#FF3300>Error:</#FF3300> <#FF7E5E>You do not meet
     the requirements to randomly teleport to %1%.</#FF7E5E>
+  error_rtp_no_destination_specified: <#FF3300>Error:</#FF3300> <#FF7E5E>You must specify
+    a destination to randomly teleport to.</#FF7E5E>
   error_invalid_world: <#FF3300>Error:</#FF3300> <#FF7E5E>Failed to finish teleportation
     as the target world could not be found.</#FF7E5E>
   error_no_offline_position: <#FF3300>Error:</#FF3300> <#FF7E5E>Could not find where

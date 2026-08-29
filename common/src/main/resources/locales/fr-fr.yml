@@ -173,6 +173,7 @@ locales:
   error_rtp_randomization_timeout: '<#FF3300>Erreur :</#FF3300> <#FF7E5E>Échec de la téléportation aléatoire. Aucune position sécurisée trouvée.</#FF7E5E>'
   error_rtp_destination_obstructed: '<#FF3300>Erreur :</#FF3300> <#FF7E5E>Votre destination de téléportation aléatoire est obstruée et n''a pas pu être dégagée.</#FF7E5E>'
   error_rtp_conditions_not_met: '<#FF3300>Erreur :</#FF3300> <#FF7E5E>Vous ne remplissez pas les conditions pour vous téléporter aléatoirement vers %1%.</#FF7E5E>'
+  error_rtp_no_destination_specified: '<#FF3300>Erreur :</#FF3300> <#FF7E5E>Vous devez préciser une destination de téléportation aléatoire.</#FF7E5E>'
   error_invalid_world: '<#FF3300>Erreur :</#FF3300> <#FF7E5E>Échec durant la téléportation : le monde visé n''a pas été trouvé.</#FF7E5E>'
   error_no_offline_position: '<#FF3300>Erreur :</#FF3300> <#FF7E5E>Impossible de trouver où %1% s''est déconnecté.</#FF7E5E>'
   error_no_homes_set_other: '<#FF3300>Erreur :</#FF3300> <#FF7E5E>%1% n''a aucun home !</#FF7E5E>'
