@@ -20,6 +20,7 @@
 package net.william278.huskhomes.random;
 
 import net.william278.huskhomes.HuskHomes;
+import net.william278.huskhomes.config.RtpOptions;
 import net.william278.huskhomes.config.Settings;
 import net.william278.huskhomes.network.Broker;
 import net.william278.huskhomes.position.Location;
@@ -37,33 +38,23 @@ import java.util.logging.Level;
  */
 public final class NormalDistributionEngine extends RandomTeleportEngine {
 
-    private final Settings.RtpSettings.RtpRadius radius;
     private final float mean;
     private final float standardDeviation;
 
     public NormalDistributionEngine(@NotNull HuskHomes plugin) {
         super(plugin, "Normal Distribution");
-        this.radius = plugin.getSettings().getRtp().getRegion();
-        this.mean = plugin.getSettings().getRtp().getDistributionMean();
-        this.standardDeviation = plugin.getSettings().getRtp().getDistributionStandardDeviation();
+        this.mean = plugin.getSettings().getRtp().getDistribution().getMean();
+        this.standardDeviation = plugin.getSettings().getRtp().getDistribution().getStandardDeviation();
 
-        if (plugin.getSettings().getRtp().isCrossServer()
-                && (plugin.getSettings().getCrossServer().isEnabled()
-                && plugin.getSettings().getCrossServer().getBrokerType() != Broker.Type.REDIS)) {
-            plugin.log(Level.WARNING, "Cross-server /rtp support has been disabled as "
-                    + "a REDIS message broker is required for this feature.");
+        if (plugin.getSettings().getRtp().getMode() == Settings.RtpSettings.Mode.CROSS_SERVER
+                && (!plugin.getSettings().getCrossServer().isEnabled()
+                || plugin.getSettings().getCrossServer().getBrokerType() != Broker.Type.REDIS)) {
+            plugin.log(Level.WARNING, "Cross-server /rtp destinations require cross-server mode with a REDIS broker.");
         }
-    }
-
-    // Utility for determining a valid spawn radius
-    private static int determineSpawnRadius(int radius, int spawnRadius, @NotNull HuskHomes plugin) {
-        if (spawnRadius >= radius) {
-            plugin.log(Level.WARNING, "The RTP spawn radius is greater than or equal to the RTP radius. "
-                    + "This will result in the RTP engine being unable to find a suitable location to teleport to. "
-                    + "Please set the RTP spawn radius to a value less than the RTP radius.");
-            return radius - 1;
+        if (plugin.getSettings().getRtp().usesPlaceholderConditions()
+                && !plugin.isDependencyAvailable("PlaceholderAPI")) {
+            plugin.log(Level.WARNING, "RTP placeholder conditions will not match because PlaceholderAPI is unavailable.");
         }
-        return spawnRadius;
     }
 
     /**
@@ -76,9 +67,16 @@ public final class NormalDistributionEngine extends RandomTeleportEngine {
     @NotNull
     public static Location generateLocation(@NotNull Location origin, float mean, float standardDeviation,
                                             float spawnRadius, float maxRadius) {
+        return generateLocation(origin, mean, standardDeviation, spawnRadius, maxRadius, RtpOptions.Direction.RANDOM);
+    }
+
+    @NotNull
+    public static Location generateLocation(@NotNull Location origin, float mean, float standardDeviation,
+                                            float spawnRadius, float maxRadius,
+                                            @NotNull RtpOptions.Direction direction) {
         // Generate random values
         final float radius = getDistributedRadius(mean, standardDeviation, spawnRadius, maxRadius);
-        final float angle = getRandomAngle();
+        final double angle = getRandomAngle(direction);
 
         // Calculate corresponding x and z
         final float z = (float) (radius * Math.cos(angle));
@@ -98,11 +96,12 @@ public final class NormalDistributionEngine extends RandomTeleportEngine {
      * @param world The world to generate the location in
      * @return A generated location
      */
-    private CompletableFuture<Optional<Location>> generateSafeLocation(@NotNull World world) {
+    private CompletableFuture<Optional<Location>> generateSafeLocation(@NotNull World world,
+                                                                         @NotNull RtpOptions options) {
         return plugin.findSafeGroundLocation(generateLocation(
                 getCenterPoint(world), mean, standardDeviation,
-                radius.getMin(), radius.getMax()
-        ));
+                options.getMinRadius(), options.getMaxRadius(), options.getDirection()
+        ), options);
     }
 
     /**
@@ -121,21 +120,37 @@ public final class NormalDistributionEngine extends RandomTeleportEngine {
     }
 
     /**
-     * Generates a random angle in the range {@code [0, 360]}.
+     * Generates a random angle in radians for the requested direction quadrant.
      *
-     * @return a random angle in the range {@code [0, 360]}
+     * @return a random angle in radians
      */
-    private static float getRandomAngle() {
-        return (float) (Math.random() * 360);
+    private static double getRandomAngle(@NotNull RtpOptions.Direction direction) {
+        if (direction == RtpOptions.Direction.RANDOM) {
+            return Math.random() * Math.PI * 2d;
+        }
+        final double center = switch (direction) {
+            case NORTH -> Math.PI;
+            case SOUTH -> 0d;
+            case EAST -> Math.PI / 2d;
+            case WEST -> Math.PI * 1.5d;
+            case RANDOM -> throw new IllegalStateException("RANDOM direction was handled above");
+        };
+        return center + ((Math.random() - 0.5d) * (Math.PI / 2d));
     }
 
     @Override
     public CompletableFuture<Optional<Position>> getRandomPosition(@NotNull World world, @NotNull String[] args) {
+        return getRandomPosition(world, args, new RtpOptions());
+    }
+
+    @Override
+    public CompletableFuture<Optional<Position>> getRandomPosition(@NotNull World world, @NotNull String[] args,
+                                                                    @NotNull RtpOptions options) {
         return plugin.supplyAsync(() -> {
-            Optional<Location> location = generateSafeLocation(world).join();
+            Optional<Location> location = generateSafeLocation(world, options).join();
             int attempts = 0;
             while (location.isEmpty()) {
-                location = generateSafeLocation(world).join();
+                location = generateSafeLocation(world, options).join();
                 if (attempts >= maxAttempts) {
                     return Optional.empty();
                 }

@@ -4,9 +4,6 @@
     <a href="https://github.com/WiIIiam278/HuskHomes/actions/workflows/ci.yml">
         <img src="https://img.shields.io/github/actions/workflow/status/WiIIiam278/HuskHomes/ci.yml?branch=master&logo=github"/>
     </a> 
-    <a href="https://repo.william278.net/#/releases/net/william278/huskhomes/">
-        <img src="https://repo.william278.net/api/badge/latest/releases/net/william278/huskhomes/huskhomes-common?color=00fb9a&name=Maven&prefix=v" />
-    </a> 
     <a href="https://discord.gg/tVYhJfyDWG">
         <img src="https://img.shields.io/discord/818135932103557162.svg?label=&logo=discord&logoColor=fff&color=7389D8&labelColor=6A7EC2" />
     </a> 
@@ -28,7 +25,7 @@
 
 **HuskHomes** is a powerful, intuitive and flexible teleportation plugin for _Minecraft: Java Edition_ servers. HuskHomes contains a meaty&mdash;but not bloated&mdash;set of player teleportation features, including set homes, warps, public homes, teleport requests, previous and offline position teleporting&mdash;and more. 
 
-HuskHomes can be used on your Spigot or Fabric server, and with a MySQL Database even works cross-server, letting players teleport across your proxy (Bungee or Velocity) network!  
+This fork targets Paper servers. With a shared database, it also works cross-server across a proxy network.
 
 ## Features
 **⭐ Works cross-server** &mdash; Let players seamlessly teleport and set homes across your proxies network of servers using MySQL/MariaDB.
@@ -44,7 +41,7 @@ HuskHomes can be used on your Spigot or Fabric server, and with a MySQL Database
 **⭐ Extensible API & open-source** &mdash; Still not enough? Extend the plugin with the HuskHomes API. Or, submit a pull request—we're open-source!
 
 ## Development
-To build HuskHomes, simply run the following in the root of the repository (building requires Java 21):
+To build HuskHomes, run the following in the root of the repository (building requires Java 25):
 
 ```bash
 ./gradlew clean build
@@ -63,7 +60,7 @@ Translations of the plugin locales are welcome to help make the plugin more acce
 
 ## Links
 - [Docs](https://william278.net/docs/huskhomes/) &mdash; Read the plugin documentation!
-- [Modrinth](https://modrinth.com/plugin/huskhomes) &mdash; View the plugin Modrinth page (Also: [Spigot](https://www.spigotmc.org/resources/huskhomes.83767/), [Polymart](https://polymart.org/resource/huskhomes.284/), [Hangar](https://hangar.papermc.io/William278/HuskHomes), & [CurseForge](https://www.curseforge.com/minecraft/mc-mods/huskhomes/))
+- [Modrinth](https://modrinth.com/plugin/huskhomes) &mdash; View the plugin Modrinth page (also on [Hangar](https://hangar.papermc.io/William278/HuskHomes))
 - [Issues](https://github.com/WiIIiam278/HuskHomes/issues) &mdash; File a bug report or feature request
 - [Discord](https://discord.gg/tVYhJfyDWG) &mdash; Get help, ask questions
 - [bStats](https://bstats.org/plugin/bukkit/HuskHomes/8430) &mdash; View plugin metrics

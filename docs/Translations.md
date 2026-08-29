@@ -1,6 +1,6 @@
-HuskHomes supports a number of community-sourced translations of the plugin locales into different languages. The default language is [`en-gb`](https://github.com/WiIIiam278/HuskHomes/blob/master/common/src/main/resources/locales/en-gb.yml) (English). The messages file is formatted using [MineDown](https://github.com/Phoenix616/MineDown).
+This fork ships two locales: `en-gb` (English, the default) and `fr-fr` (French). The messages file is formatted using [MineDown](https://github.com/Phoenix616/MineDown).
 
-You can change which preset language option to use by changing the top-level `language` setting in the plugin config.yml file. You must change this to one of the supported language codes. You can [view a list of the supported languages](https://github.com/WiIIiam278/HuskHomes/tree/master/common/src/main/resources/locales) by looking at the locales source folder.
+You can change which preset language option to use by changing the top-level `language` setting in the plugin config.yml file. It must be set to `en-gb` or `fr-fr`; any other code fails to load the locales.
 
 ## Contributing Locales
 You can contribute locales by submitting a pull request with a yaml file containing translations of the [default locales](https://github.com/WiIIiam278/HuskHomes/blob/master/common/src/main/resources/locales/en-gb.yml) into your language. Here's a few pointers for doing this: 

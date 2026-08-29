@@ -17,11 +17,10 @@ The HuskHomes API shares version numbering with the plugin itself for consistenc
 ### Platforms
 > **Note:** For versions older than `v4.6`, the HuskHomes API was only distributed for the Bukkit platform (as `net.william278:huskhomes`)
 
-The HuskHomes API is available for the following platforms:
+The source tree retains these implementation layers for the Paper plugin:
 
-* `bukkit` - Bukkit, Spigot, Paper, etc. Provides Bukkit API event listeners and adapters to `org.bukkit` objects.
-* `fabric` - Fabric, Quilt, etc. Provides Fabric API event callbacks and adapters to `net.minecraft` objects.
-* `common` - Common API for all platforms.
+* `bukkit` - Bukkit API event listeners and adapters used by Paper.
+* `common` - Platform-independent functionality used by Paper.
 
 <details>
 <summary>Targeting older versions</summary>
@@ -51,11 +50,11 @@ Add the repository to your `pom.xml` as per below. You can alternatively specify
     </repository>
 </repositories>
 ```
-Add the dependency to your `pom.xml` as per below. Replace `VERSION` with the latest version of HuskHomes (without the v): ![Latest version](https://img.shields.io/github/v/tag/WiIIiam278/HuskHomes?color=%23282828&label=%20&style=flat-square). Note for Fabric you must append the target Minecraft version to the version number (e.g. `3.6.1+1.20.1`).
+Add the dependency to your `pom.xml` as below. Replace `VERSION` with the latest HuskHomes version (without the v): ![Latest version](https://img.shields.io/github/v/tag/WiIIiam278/HuskHomes?color=%23282828&label=%20&style=flat-square).
 ```xml
 <dependency>
     <groupId>net.william278.huskhomes</groupId>
-    <artifactId>huskhomes-PLATFORM</artifactId>
+    <artifactId>huskhomes-bukkit</artifactId>
     <version>VERSION</version>
     <scope>provided</scope>
 </dependency>
@@ -74,11 +73,11 @@ allprojects {
 	}
 }
 ```
-Add the dependency as per below. Replace `VERSION` with the latest version of HuskHomes (without the v): ![Latest version](https://img.shields.io/github/v/tag/WiIIiam278/HuskHomes?color=%23282828&label=%20&style=flat-square). Note for Fabric you must append the target Minecraft version to the version number (e.g. `3.6.1+1.20.1`).
+Add the dependency as below. Replace `VERSION` with the latest HuskHomes version (without the v): ![Latest version](https://img.shields.io/github/v/tag/WiIIiam278/HuskHomes?color=%23282828&label=%20&style=flat-square).
 
 ```groovy
 dependencies {
-    compileOnly 'net.william278.huskhomes:huskhomes-PLATFORM:VERSION'
+    compileOnly 'net.william278.huskhomes:huskhomes-bukkit:VERSION'
 }
 ```
 </details>

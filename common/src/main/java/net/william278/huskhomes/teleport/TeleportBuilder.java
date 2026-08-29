@@ -22,10 +22,12 @@ package net.william278.huskhomes.teleport;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import net.william278.huskhomes.HuskHomes;
+import net.william278.huskhomes.config.RtpOptions;
 import net.william278.huskhomes.hook.EconomyHook;
 import net.william278.huskhomes.user.OnlineUser;
 import net.william278.huskhomes.util.TransactionResolver;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
 import java.util.List;
@@ -46,6 +48,8 @@ public class TeleportBuilder {
     @Setter
     private Teleport.Type type = Teleport.Type.TELEPORT;
     private List<TransactionResolver.Action> actions = List.of();
+    @Nullable
+    private RtpOptions rtpOptions;
 
     protected TeleportBuilder(@NotNull HuskHomes plugin) {
         this.plugin = plugin;
@@ -54,7 +58,7 @@ public class TeleportBuilder {
     @NotNull
     public Teleport toTeleport() throws TeleportationException {
         this.validateTeleport();
-        return new Teleport(executor, teleporter, target, type, updateLastPosition, actions, plugin);
+        return new Teleport(executor, teleporter, target, type, updateLastPosition, actions, rtpOptions, plugin);
     }
 
     @NotNull
@@ -67,7 +71,7 @@ public class TeleportBuilder {
         return new TimedTeleport(
                 executor, onlineTeleporter, target, type,
                 onlineTeleporter.getMaxTeleportWarmup(plugin.getSettings().getGeneral().getTeleportWarmupTime()),
-                updateLastPosition, actions, plugin
+                updateLastPosition, actions, rtpOptions, plugin
         );
     }
 
@@ -130,6 +134,12 @@ public class TeleportBuilder {
     @NotNull
     public TeleportBuilder actions(@NotNull TransactionResolver.Action... actions) {
         this.actions = List.of(actions);
+        return this;
+    }
+
+    @NotNull
+    public TeleportBuilder rtpOptions(@NotNull RtpOptions options) {
+        this.rtpOptions = options;
         return this;
     }
 }

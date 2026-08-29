@@ -90,6 +90,17 @@ public abstract class OnlineUser extends User implements Teleportable, CommandUs
     public abstract Map<String, Boolean> getPermissions();
 
     /**
+     * Resolve placeholders for this player when the platform supports a placeholder provider.
+     *
+     * @param input placeholder-containing text
+     * @return the resolved text, or empty when no provider is available
+     */
+    @NotNull
+    public CompletableFuture<Optional<String>> resolvePlaceholder(@NotNull String input) {
+        return CompletableFuture.completedFuture(Optional.empty());
+    }
+
+    /**
      * Dispatch a title or subtitle to the player.
      *
      * @param message  the {@link Component} to send

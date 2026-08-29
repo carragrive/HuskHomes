@@ -1,18 +1,3 @@
-This page contains the configuration structure for HuskHomes.
-
-## Configuration structure
-📁 `plugins/HuskHomes/`
-  - 📄 `config.yml`: General plugin configuration
-  - 📄 `server.yml`: (Cross-server setups only) Server ID configuration
-  - 📄 `spawn.yml`: Local saved server spawn position. Use /setspawn to generate this file
-  - 📄 `messages-xx-xx.yml`: Plugin locales, formatted in MineDown (see [[Translations]])
-  - 📄 `safety/unsafe_blocks.yml`: If exists, overrides the built-in unsafe block list
-
-## Example files
-<details>
-<summary>config.yml</summary>
-
-```yaml
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃       HuskHomes Config       ┃
 # ┃    Developed by William278   ┃
@@ -47,6 +32,7 @@ database:
     timeout: 20000
   # Names of tables to use on your database. Don't modify this unless you know what you're doing!
   table_names:
+    META_DATA: huskhomes_metadata
     PLAYER_DATA: huskhomes_users
     PLAYER_COOLDOWNS_DATA: huskhomes_user_cooldowns
     POSITION_DATA: huskhomes_position_data
@@ -60,6 +46,9 @@ general:
   max_homes: 10
   # The maximum public homes a user can create. Override with the huskhomes.max_public_homes.<number> permission.
   max_public_homes: 10
+  # What character to use between owner usernames and home names when specifying a home or public home.
+  # (e.g. the '.' in: /phome username.home_name). Change if you're using '.' as the Bedrock user prefix.
+  home_delimiter: .
   # Whether permission limits (i.e. huskhomes.max_homes.<number>) should stack if the user inherits multiple nodes.
   stack_permission_limits: false
   # Whether users require a permission (huskhomes.warp.<warp_name>) to use warps
@@ -76,6 +65,8 @@ general:
   teleport_invulnerability_time: 0
   # How long before received teleport requests expire (in seconds)
   teleport_request_expiry_time: 60
+  # Whether /tpa should use the location of the sender when accepted. 
+  strict_tpa_requests: false
   # Whether /tpahere should use the location of the sender when sent. Docs: https://william278.net/docs/huskhomes/strict-tpahere/
   strict_tpa_here_requests: true
   # How many items should be displayed per-page in chat menu lists
@@ -106,8 +97,8 @@ general:
     return_by_death: true
     # Whether /back should work with other plugins that use the PlayerTeleportEvent (can conflict)
     save_on_teleport_event: false
-    # List of world names where the /back command cannot RETURN the player to.
-    # A user's last position won't be updated if they die or teleport from these worlds, but they still will be able to use the command while IN the world
+    # List of world names where the /back command cannot RETURN the player to. 
+    # A user's last position won't be updated if they die or teleport from these worlds, but they still will be able to use the command while IN the world.
     restricted_worlds: []
   # Settings for sound effects
   sound_effects:
@@ -122,18 +113,22 @@ general:
 # Cross-server settings
 cross_server:
   # Whether to enable cross-server mode for teleporting across your proxy network.
-  enabled: false
+  enabled: true
   # The cluster ID, for if you're networking multiple separate groups of HuskHomes-enabled servers.
   # Do not change unless you know what you're doing
   cluster_id: main
   # Type of network message broker to ues for cross-server networking (PLUGIN_MESSAGE or REDIS)
-  broker_type: PLUGIN_MESSAGE
+  broker_type: REDIS
   # Settings for if you're using REDIS as your message broker
   redis:
     host: localhost
     port: 6379
+    # Only change this if you know what you are doing. The default value is 0.
+    database: 0
     # Password for your Redis server. Leave blank if you're not using a password.
     password: ''
+    # Timeout for connecting to the Redis server (in milliseconds)
+    timeout: 2000
     use_ssl: false
     # Settings for if you're using Redis Sentinels.
     # If you're not sure what this is, please ignore this section.
@@ -150,48 +145,104 @@ cross_server:
     warp_name: Spawn
   # Whether player respawn positions should work cross-server. Docs: https://william278.net/docs/huskhomes/global-respawning/
   global_respawning: false
+
 # Random teleport (/rtp) settings.
 rtp:
-  # LOCAL or CROSS_SERVER. CROSS_SERVER requires the global Redis cross-server setup.
-  mode: LOCAL
-  # Destination used by /rtp when no destination is specified
-  default_destination: overworld
-  # Normal distribution settings used to calculate distance from the center
+  # LOCAL or CROSS_SERVER. Remote destinations require CROSS_SERVER and the global Redis setup.
+  mode: CROSS_SERVER
+  # Destination used by /rtp when no destination is supplied.
+  default_destination: resources
   distribution:
     mean: 0.75
     standard_deviation: 2.0
-  # Named destinations used by /rtp [destination] [player]
   destinations:
-    overworld:
+    local_overworld:
       aliases:
         - world
-      # Leave blank for the current server
+        - overworld
+      # Blank server means the current server.
       server: ''
       world: world
       profiles:
-        # Required fallback profile. Leave conditions empty to match everyone;
-        # add conditions to refuse players who fail them.
         default:
           priority: 0
-          conditions:
-            all: []
           options:
             direction: RANDOM
             min_radius: 500
             max_radius: 5000
-            # Player-foot Y coordinates; both bounds are inclusive
-            min_y: -64
+            min_y: 64
             max_y: 319
             allow_underground: false
-            # Carve a safe space out of solid blocks at the destination
+    resources:
+      aliases:
+        - resources01
+      # Must match this backend's server.yml and the proxy server ID.
+      server: resources01
+      world: world
+      profiles:
+        default:
+          priority: 0
+          options:
+            direction: RANDOM
+            min_radius: 500
+            max_radius: 5000
+            min_y: 64
+            max_y: 319
+            allow_underground: false
+        vip:
+          priority: 100
+          conditions:
+            all:
+              - type: PERMISSION
+                value: rtp.resources1.vips
+              - type: PLACEHOLDER
+                input: '%player_exp_to_level%'
+                comparator: '>'
+                value: '10'
+          options:
+            direction: RANDOM
+            min_radius: 1000
+            max_radius: 7500
+            min_y: 64
+            max_y: 319
+            allow_underground: false
+            # Carve a 3x3x3 pocket out of solid blocks on arrival, if protection plugins allow it.
             clearance:
-              enabled: false
-              # Every carved block must pass a BlockBreakEvent protection check
+              enabled: true
               respect_protection: true
-              # Odd width (1-15) centered on the player, height (2-16) from their feet
               width: 3
               height: 3
               include_corners: false
+    resources_nether:
+      aliases:
+        - nether
+      server: resources01
+      world: world_nether
+      profiles:
+        default:
+          priority: 0
+          options:
+            direction: RANDOM
+            min_radius: 500
+            max_radius: 5000
+            min_y: 32
+            max_y: 255
+            allow_underground: true
+        bedrock:
+          priority: 100
+          conditions:
+            all:
+              - type: PERMISSION
+                value: huskhomes.rtp.bedrock
+          options:
+            direction: RANDOM
+            min_radius: 500
+            max_radius: 5000
+            min_y: 32
+            # Y bounds are inclusive; this keeps the player's feet below Y=128.
+            max_y: 127
+            allow_underground: true
+
 # Action cooldown settings. Docs: https://william278.net/docs/huskhomes/cooldowns
 cooldowns:
   # Whether to apply a cooldown between performing certain actions
@@ -202,7 +253,7 @@ cooldowns:
 # Economy settings. Docs: https://william278.net/docs/huskhomes/economy-hook
 economy:
   # Enable economy plugin integration (requires Vault and a compatible Economy plugin)
-  enabled: true
+  enabled: false
   # Map of economy actions to costs.
   economy_costs:
     ADDITIONAL_HOME_SLOT: 100.0
@@ -212,7 +263,7 @@ economy:
   free_home_slots: 5
 # Plan hook settings. Docs: https://william278.net/docs/huskhomes/plan-hook
 plan:
-  # Hook into Player Analytics to provide HuskHomes statistics in your web dashboard
+  # Hook into Player Analytics to provide HuskHomes statistics in your web dashboard.
   enabled: true
 # LuckPerms hook settings. Docs: https://william278.net/docs/huskhomes/luckperms-hook
 luckperms:
@@ -228,43 +279,3 @@ map_hook:
   show_warps: true
 # List of commands to disable (e.g. ['/home', '/warp'] to disable /home and /warp)
 disabled_commands: []
-```
-</details>
-
-<details>
-<summary>spawn.yml</summary>
-
-You should generate this file in-game with the `/setspawn` command.
-```yaml
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃ Server /spawn location cache ┃
-# ┃ Edit in-game using /setspawn ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-x: 0.0
-y: 64.0
-z: 0.0
-yaw: 180.0
-pitch: 0.0
-world_name: world
-world_uuid: 00000000-0000-0000-0000-000000000000
-```
-</details>
-
-<details>
-<summary>server.yml</summary>
-
-This file is only present if your server uses cross-server mode to run HuskHomes on a proxy network.
-```yaml
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃     HuskHomes - Server ID    ┃
-# ┃    Developed by William278   ┃
-# ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-# ┣╸ This file should contain the ID of this server as defined in your proxy config.
-# ┣╸ If you join it using /server alpha, then set it to 'alpha' (case-sensitive)
-# ┗╸ You only need to touch this if you're using cross-server mode.
-
-name: beta
-```
-
-</details>

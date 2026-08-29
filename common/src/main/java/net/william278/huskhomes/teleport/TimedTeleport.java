@@ -21,6 +21,7 @@ package net.william278.huskhomes.teleport;
 
 import net.kyori.adventure.text.Component;
 import net.william278.huskhomes.HuskHomes;
+import net.william278.huskhomes.config.RtpOptions;
 import net.william278.huskhomes.config.Settings;
 import net.william278.huskhomes.event.ITeleportWarmupCancelledEvent;
 import net.william278.huskhomes.position.Position;
@@ -28,6 +29,7 @@ import net.william278.huskhomes.user.OnlineUser;
 import net.william278.huskhomes.util.Task;
 import net.william278.huskhomes.util.TransactionResolver;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
@@ -48,8 +50,9 @@ public class TimedTeleport extends Teleport implements Runnable, Completable {
 
     protected TimedTeleport(@NotNull OnlineUser executor, @NotNull OnlineUser teleporter, @NotNull Target target,
                             @NotNull Type type, int warmupTime, boolean updateLastPosition,
-                            @NotNull List<TransactionResolver.Action> actions, @NotNull HuskHomes plugin) {
-        super(teleporter, executor, target, type, updateLastPosition, actions, plugin);
+                            @NotNull List<TransactionResolver.Action> actions, @Nullable RtpOptions rtpOptions,
+                            @NotNull HuskHomes plugin) {
+        super(teleporter, executor, target, type, updateLastPosition, actions, rtpOptions, plugin);
         this.startLocation = teleporter.getPosition();
         this.warmupTime = warmupTime;
         this.timeLeft = Math.max(warmupTime, 0);

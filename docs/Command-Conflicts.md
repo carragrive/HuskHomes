@@ -5,7 +5,7 @@ For instance, if you have both [EssentialsX](https://essentialsx.net/) and HuskH
 This page discusses a number of strategies to circumnavigate this issue.
 
 ## Disabling EssentialsX Commands
-> **Applies to:** EssentialsX (Spigot, Paper)
+> **Applies to:** EssentialsX on Paper
 
 [EssentialsX](https://essentialsx.net/) is a popular plugin which provides a number of commands, including `/home`, `/warp`, `/spawn`, and `/tpa`. If you have EssentialsX installed, you will need to disable these commands to prevent conflicts with HuskHomes.
 
@@ -48,14 +48,14 @@ disabled-commands:
 </details>
 
 ## Fallback namespace
-> **Applies to:** Spigot, Paper, or Fabric
+> **Applies to:** Paper
 
 All commands are registered with a fallback namespace, so that you can still access them. For instance, `/minecraft:tp` will run the default Minecraft teleport command, while `/huskhomes:tp` will run HuskHomes' tp command.
 
 If you have multiple home commands on your server, for instance, you can therefore use `/huskhomes:home` to run HuskHomes' home command instead of, for instance, Essentials'. However, this is a bit ugly and can be confusing for players to understand, so read below for how to create aliases to make this easier.
 
 ## Editing Commands.yml
-> **Applies to:** Spigot, Paper
+> **Applies to:** Paper
 
 Spigot provides a [`commands.yml` file](https://bukkit.fandom.com/wiki/Commands.yml) which lets you define custom aliases for commands. This not only lets you define additional shortcuts for plugin commands, but also determine which commands should take priority during execution.
 

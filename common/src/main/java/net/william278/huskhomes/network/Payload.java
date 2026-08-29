@@ -23,6 +23,7 @@ import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import net.william278.huskhomes.config.RtpOptions;
 import net.william278.huskhomes.position.Position;
 import net.william278.huskhomes.position.World;
 import net.william278.huskhomes.teleport.TeleportRequest;
@@ -55,6 +56,14 @@ public class Payload {
     @Expose
     @SerializedName("user_list")
     private List<User> userList;
+    @Nullable
+    @Expose
+    @SerializedName("rtp_options")
+    private RtpOptions rtpOptions;
+    @Nullable
+    @Expose
+    @SerializedName("rtp_timed")
+    private Boolean rtpTimed;
 
     @NotNull
     public static Payload empty() {
@@ -65,6 +74,22 @@ public class Payload {
     public static Payload string(@Nullable String target) {
         final Payload payload = new Payload();
         payload.string = target;
+        return payload;
+    }
+
+    @NotNull
+    public static Payload rtpLocationRequest(@NotNull String worldName, @NotNull RtpOptions options, boolean timed) {
+        final Payload payload = string(worldName);
+        payload.rtpOptions = options;
+        payload.rtpTimed = timed;
+        return payload;
+    }
+
+    @NotNull
+    public static Payload rtpPosition(@Nullable Position position, @NotNull RtpOptions options, boolean timed) {
+        final Payload payload = position(position);
+        payload.rtpOptions = options;
+        payload.rtpTimed = timed;
         return payload;
     }
 
@@ -114,6 +139,14 @@ public class Payload {
 
     public Optional<List<User>> getUserList() {
         return Optional.ofNullable(userList);
+    }
+
+    public Optional<RtpOptions> getRtpOptions() {
+        return Optional.ofNullable(rtpOptions);
+    }
+
+    public Optional<Boolean> getRtpTimed() {
+        return Optional.ofNullable(rtpTimed);
     }
 
 }

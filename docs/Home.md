@@ -41,5 +41,4 @@ Welcome to the plugin documentation for HuskHomes v4.x+, the powerful & intuitiv
   * 🚰 [Spigot](https://www.spigotmc.org/resources/huskhomes.83767/)
   * 🛒 [Polymart](https://polymart.org/resource/huskhomes.284/)
   * 🛫 [Hangar](https://hangar.papermc.io/William278/HuskHomes)
-  * 🔥 [CurseForge](https://www.curseforge.com/minecraft/mc-mods/huskhomes/)
 * 💬 [Discord Support](https://discord.gg/tVYhJfyDWG)

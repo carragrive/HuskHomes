@@ -1,12 +1,8 @@
 import org.apache.tools.ant.filters.ReplaceTokens
-import org.gradle.jvm.toolchain.JavaLanguageVersion
 
 plugins {
     id 'com.gradleup.shadow' version '9.0.0-beta17'
-    id 'gg.essential.loom' version '1.15.50' apply false
-    id 'gg.essential.multi-version.root' apply false
     id 'org.ajoberstar.grgit' version '5.3.3'
-    id 'maven-publish'
     id 'java'
 }
 
@@ -26,42 +22,7 @@ ext {
     set 'postgresql_driver_version', postgresql_driver_version.toString()
 }
 
-publishing {
-    repositories {
-        if (System.getenv("RELEASES_MAVEN_USERNAME") != null) {
-            maven {
-                name = "william278-releases"
-                url = "https://repo.william278.net/releases"
-                credentials {
-                    username = System.getenv("RELEASES_MAVEN_USERNAME")
-                    password = System.getenv("RELEASES_MAVEN_PASSWORD")
-                }
-                authentication {
-                    basic(BasicAuthentication)
-                }
-            }
-        }
-        if (System.getenv("SNAPSHOTS_MAVEN_USERNAME") != null) {
-            maven {
-                name = "william278-snapshots"
-                url = "https://repo.william278.net/snapshots"
-                credentials {
-                    username = System.getenv("SNAPSHOTS_MAVEN_USERNAME")
-                    password = System.getenv("SNAPSHOTS_MAVEN_PASSWORD")
-                }
-                authentication {
-                    basic(BasicAuthentication)
-                }
-            }
-        }
-    }
-}
-
 allprojects {
-    if (project.name == 'fabric') {
-        return
-    }
-
     apply plugin: 'com.gradleup.shadow'
     apply plugin: 'java'
 
@@ -75,18 +36,14 @@ allprojects {
         mavenCentral()
         maven { url 'https://jitpack.io' }
         maven { url 'https://repo.william278.net/releases/' }
-        maven { url 'https://maven.fabricmc.net/' }
-        maven { url 'https://libraries.minecraft.net/' }
         maven { url 'https://api.modrinth.com/maven' }
         maven { url 'https://repo.papermc.io/repository/maven-public/' }
         maven { url 'https://mvn-repo.arim.space/lesser-gpl3/' }
-        maven { url 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/' }
         maven { url 'https://repo.extendedclip.com/content/repositories/placeholderapi/' }
         maven { url 'https://repo.minebench.de/' }
         maven { url 'https://repo.alessiodp.com/releases/' }
         maven { url 'https://repo.essentialsx.net/releases/' }
         maven { url 'https://repo.mikeprimm.com/' }
-        maven { url 'https://maven.impactdev.net/repository/development' }
     }
 
     dependencies {
@@ -109,118 +66,28 @@ allprojects {
 }
 
 subprojects {
-    // Ignore root fabric project (no jars)
-    if (project.name == 'fabric') {
-        return
-    }
-
-    // Project naming
     version rootProject.version
-    def name = "$rootProject.name"
-    if (rootProject != project.parent) {
-        name += "-${project.parent.name.capitalize()}"
-    } else {
-        name += "-${project.name.capitalize()}"
-    }
     base {
-        archivesName = name
-    }
-
-    // Fabric-specific configuration
-    if (project.parent?.name?.equals('fabric')) {
-        def isUnobfuscatedRuntime = isUnobfuscatedMinecraftVersion(project.name)
-        if (isUnobfuscatedRuntime) {
-            java {
-                toolchain {
-                    languageVersion = JavaLanguageVersion.of(25)
-                }
-            }
-            compileJava.options.release.set 25
-        } else {
-            java {
-                toolchain {
-                    languageVersion = JavaLanguageVersion.of(21)
-                }
-            }
-            compileJava.options.release.set 21
-        }
-        version += "+mc.${project.name}"
+        archivesName = "$rootProject.name-${project.name.capitalize()}"
     }
 
     jar {
         from(rootProject.file('LICENSE'))
     }
 
-    shadowJar {
-        from(rootProject.file('LICENSE'))
-        destinationDirectory.set(file("$rootDir/target"))
-        archiveClassifier.set('')
-    }
-
-    // API publishing
-    if (['common', 'bukkit'].contains(project.name) || project.parent?.name?.equals('fabric')) {
-        java {
-            withSourcesJar()
-            withJavadocJar()
-        }
-        sourcesJar {
+    if (project.name == 'paper') {
+        shadowJar {
+            from(rootProject.file('LICENSE'))
             destinationDirectory.set(file("$rootDir/target"))
+            archiveClassifier.set('')
         }
-        javadocJar {
-            destinationDirectory.set(file("$rootDir/target"))
-        }
-        shadowJar.dependsOn(sourcesJar, javadocJar)
-
-        publishing {
-            if (['common'].contains(project.name)) {
-                publications {
-                    mavenJavaCommon(MavenPublication) {
-                        groupId = 'net.william278.huskhomes'
-                        artifactId = 'huskhomes-common'
-                        version = "$rootProject.version"
-                        artifact shadowJar
-                        artifact sourcesJar
-                        artifact javadocJar
-                    }
-                }
-            }
-
-            if (['bukkit'].contains(project.name)) {
-                publications {
-                    mavenJavaBukkit(MavenPublication) {
-                        groupId = 'net.william278.huskhomes'
-                        artifactId = 'huskhomes-bukkit'
-                        version = "$rootProject.version"
-                        artifact shadowJar
-                        artifact sourcesJar
-                        artifact javadocJar
-                    }
-                }
-            }
-
-            if (project.parent?.name?.equals('fabric')) {
-                afterEvaluate {
-                    def publishedJarTask = tasks.named(project.ext.fabricRuntimeJarTaskName as String)
-                    publishing {
-                        publications {
-                            "mavenJavaFabric_${project.name.replace('.', '_')}"(MavenPublication) {
-                                groupId = 'net.william278.huskhomes'
-                                artifactId = 'huskhomes-fabric'
-                                version = "$rootProject.version+$project.name"
-                                artifact publishedJarTask
-                                artifact sourcesJar
-                                artifact javadocJar
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        jar.dependsOn shadowJar
+    } else {
+        shadowJar.enabled = false
     }
-
-    jar.dependsOn shadowJar
-    clean.delete "$rootDir/target"
 }
+
+clean.delete "$rootDir/target"
 
 logger.lifecycle("Building HuskHomes ${version} by William278")
 
@@ -242,9 +109,4 @@ def versionMetadata() {
         return ''
     }
     return '-' + grgit.head().abbreviatedId
-}
-
-static boolean isUnobfuscatedMinecraftVersion(String version) {
-    def parts = version.tokenize('.')
-    return !parts.isEmpty() && parts.first().isInteger() && parts.first().toInteger() >= 26
 }

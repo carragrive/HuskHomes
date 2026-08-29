@@ -74,6 +74,7 @@ public interface ConfigProvider {
                 Settings.class,
                 YAML_CONFIGURATION_PROPERTIES.header(Settings.CONFIG_HEADER).build()
         ));
+        getSettings().getRtp().validate();
         Home.setDelimiter(getSettings().getGeneral().getHomeDelimiter());
     }
 

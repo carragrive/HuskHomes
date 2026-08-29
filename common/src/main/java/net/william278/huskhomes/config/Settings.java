@@ -29,11 +29,13 @@ import net.william278.huskhomes.command.Command;
 import net.william278.huskhomes.database.Database;
 import net.william278.huskhomes.network.Broker;
 import net.william278.huskhomes.position.World;
+import net.william278.huskhomes.user.OnlineUser;
 import net.william278.huskhomes.util.TransactionResolver;
 import org.jetbrains.annotations.NotNull;
 import redis.clients.jedis.Protocol;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
@@ -230,11 +232,7 @@ public final class Settings {
             private List<String> restrictedWorlds = new ArrayList<>();
 
             public boolean canReturnToWorld(@NotNull World world) {
-                final String name = world.getName();
-                final String formattedName = name.replace("minecraft:", "");
-                return restrictedWorlds.stream()
-                        .map(n -> n.replace("minecraft:", ""))
-                        .noneMatch(n -> n.equalsIgnoreCase(formattedName));
+                return restrictedWorlds.stream().noneMatch(world::matches);
             }
         }
 
@@ -337,50 +335,242 @@ public final class Settings {
     @NoArgsConstructor
     public static class RtpSettings {
 
-        @Comment({"Radial region around the /spawn position where players CAN be randomly teleported.",
-                "If no /spawn has been set, (0, 0) will be used instead."})
-        private RtpRadius region = new RtpRadius();
+        @Comment("RTP mode (LOCAL or CROSS_SERVER). CROSS_SERVER requires the global Redis cross-server setup.")
+        private Mode mode = Mode.LOCAL;
+
+        @Comment("Destination used by /rtp when no destination is specified")
+        private String defaultDestination = "overworld";
+
+        @Comment("Normal distribution settings used to calculate distance from the center")
+        private Distribution distribution = new Distribution();
+
+        @Comment("Named RTP destinations. The map key is the destination ID used by permissions and commands.")
+        private Map<String, Destination> destinations = defaultDestinations();
+
+        @NotNull
+        public Optional<Map.Entry<String, Destination>> findDestination(@NotNull String name) {
+            return destinations.entrySet().stream()
+                    .filter(entry -> entry.getKey().equalsIgnoreCase(name) || entry.getValue().getAliases().stream()
+                            .anyMatch(alias -> alias.equalsIgnoreCase(name)))
+                    .findFirst();
+        }
+
+        @NotNull
+        public Optional<Map.Entry<String, Destination>> getDefault() {
+            return findDestination(defaultDestination);
+        }
+
+        public void validate() {
+            if (mode == null || distribution == null) {
+                throw new IllegalStateException("rtp.mode and rtp.distribution must be configured");
+            }
+            if (destinations == null || destinations.isEmpty()) {
+                throw new IllegalStateException("rtp.destinations must contain at least one destination");
+            }
+            final Set<String> names = new HashSet<>();
+            destinations.forEach((id, destination) -> {
+                if (id == null || id.isBlank() || destination == null || destination.getWorld() == null
+                        || destination.getWorld().isBlank()) {
+                    throw new IllegalStateException("RTP destination IDs and worlds cannot be blank");
+                }
+                if (!names.add(id.toLowerCase(Locale.ENGLISH))) {
+                    throw new IllegalStateException("Duplicate RTP destination name: " + id);
+                }
+                destination.validate("rtp.destinations." + id);
+                destination.getAliases().forEach(alias -> {
+                    if (alias == null || alias.isBlank() || !names.add(alias.toLowerCase(Locale.ENGLISH))) {
+                        throw new IllegalStateException("Duplicate or blank RTP destination alias: " + alias);
+                    }
+                });
+            });
+            if (getDefault().isEmpty()) {
+                throw new IllegalStateException("rtp.default_destination does not identify a configured destination");
+            }
+        }
+
+        public boolean usesPlaceholderConditions() {
+            return destinations.values().stream()
+                    .flatMap(destination -> destination.getProfiles().values().stream())
+                    .flatMap(profile -> profile.getConditions().getAll().stream())
+                    .anyMatch(condition -> condition.getType() == Condition.Type.PLACEHOLDER);
+        }
+
+        private static Map<String, Destination> defaultDestinations() {
+            final Map<String, Destination> defaults = new LinkedHashMap<>();
+            defaults.put("overworld", new Destination());
+            return defaults;
+        }
+
+        public enum Mode {
+            LOCAL,
+            CROSS_SERVER
+        }
 
         @Getter
         @Configuration
         @NoArgsConstructor
-        public static class RtpRadius {
-            private int min = 500;
-            private int max = 5000;
+        public static class Distribution {
+            private float mean = 0.75f;
+            private float standardDeviation = 2.0f;
         }
 
-        @Comment("Mean of the normal distribution used to calculate the distance from the center of the world")
-        private float distributionMean = 0.75f;
+        @Getter
+        @Configuration
+        @NoArgsConstructor
+        public static class Destination {
+            private List<String> aliases = Lists.newArrayList("world");
+            @Comment("Target server ID. Leave blank to use the current server.")
+            private String server = "";
+            private String world = "world";
+            private Map<String, Profile> profiles = new LinkedHashMap<>(Map.of("default", new Profile()));
 
-        @Comment("Standard deviation of the normal distribution for distributing players randomly")
-        private float distributionStandardDeviation = 2.0f;
+            /**
+             * Select the profile to use for a user, checking conditional profiles from highest to lowest priority
+             * and the {@code default} profile last. A {@code default} profile with no conditions always matches;
+             * one with conditions may reject the user, in which case no profile is returned and the teleport is
+             * refused.
+             *
+             * @param user the user to select a profile for
+             * @return the matched profile, or empty if the user met no profile's conditions
+             */
+            @NotNull
+            public CompletableFuture<Optional<Profile>> selectProfile(@NotNull OnlineUser user) {
+                final List<Profile> candidates = new ArrayList<>(profiles.entrySet().stream()
+                        .filter(entry -> !entry.getKey().equalsIgnoreCase("default"))
+                        .map(Map.Entry::getValue)
+                        .sorted(Comparator.comparingInt(Profile::getPriority).reversed())
+                        .toList());
+                Optional.ofNullable(profiles.get("default")).ifPresent(candidates::add);
 
-        @Comment({"Set the minimum random teleportation height for each world", "List of world_name:height pairs"})
-        private List<String> minHeight = Lists.newArrayList();
+                CompletableFuture<Optional<Profile>> result = CompletableFuture.completedFuture(Optional.empty());
+                for (Profile candidate : candidates) {
+                    result = result.thenCompose(selected -> selected.isPresent()
+                            ? CompletableFuture.completedFuture(selected)
+                            : candidate.matches(user).thenApply(matches -> matches ? Optional.of(candidate) : Optional.empty()));
+                }
+                return result;
+            }
 
-        @Comment({"Set the maximum random teleportation height for each world", "List of world_name:height pairs"})
-        private List<String> maxHeight = Lists.newArrayList();
-
-        @Comment("List of worlds in which /rtp is disabled.")
-        private List<String> restrictedWorlds = List.of("world_the_end");
-
-        public boolean isWorldRtpRestricted(@NotNull World world) {
-            final String name = world.getName();
-            final String formattedName = name.replace("minecraft:", "");
-            return restrictedWorlds.stream()
-                    .map(n -> n.replace("minecraft:", ""))
-                    .anyMatch(n -> n.equalsIgnoreCase(formattedName));
+            private void validate(String path) {
+                if (aliases == null || profiles == null) {
+                    throw new IllegalStateException(path + ".aliases and profiles must be configured");
+                }
+                if (profiles.get("default") == null) {
+                    throw new IllegalStateException(path + ".profiles must contain a 'default' fallback");
+                }
+                final Set<Integer> priorities = new HashSet<>();
+                profiles.forEach((id, profile) -> {
+                    if (id == null || id.isBlank() || profile == null || profile.getConditions() == null
+                            || profile.getOptions() == null || !priorities.add(profile.getPriority())) {
+                        throw new IllegalStateException(path + ".profiles has a blank ID or duplicate priority");
+                    }
+                    if (!id.equalsIgnoreCase("default") && profile.getConditions().getAll().isEmpty()) {
+                        throw new IllegalStateException(path + ".profiles." + id + " must have conditions");
+                    }
+                    profile.getConditions().getAll().forEach(condition -> condition.validate(
+                            path + ".profiles." + id + ".conditions"
+                    ));
+                    profile.getOptions().validate(path + ".profiles." + id + ".options");
+                });
+            }
         }
 
-        @Comment("Whether or not RTP should perform cross-server.")
-        private boolean crossServer = false;
+        @Getter
+        @Configuration
+        @NoArgsConstructor
+        public static class Profile {
+            private int priority = 0;
+            private Conditions conditions = new Conditions();
+            private RtpOptions options = new RtpOptions();
 
-        @Comment({"List of server in which /rtp is allowed. (Only relevant when using cross server mode WITH REDIS)",
-                "If a server is not defined here the RTP logic has no way of knowing its existence.",
-        "Unless specified, the default world name used as targeted world is the name of the world the player currently standing in."})
-        private Map<String, List<String>> randomTargetServers = new HashMap<>(
-                Map.of("server", List.of("world", "world_nether", "world_the_end"))
-        );
+            @NotNull
+            public CompletableFuture<Boolean> matches(@NotNull OnlineUser user) {
+                final CompletableFuture<?>[] matches = conditions.getAll().stream()
+                        .map(condition -> condition.matches(user))
+                        .toArray(CompletableFuture[]::new);
+                return CompletableFuture.allOf(matches).thenApply(ignored -> Arrays.stream(matches)
+                        .allMatch(match -> Boolean.TRUE.equals(match.join())));
+            }
+        }
+
+        @Getter
+        @Configuration
+        @NoArgsConstructor
+        public static class Conditions {
+            private List<Condition> all = Lists.newArrayList();
+        }
+
+        @Getter
+        @Configuration
+        @NoArgsConstructor
+        public static class Condition {
+            private Type type = Type.PERMISSION;
+            private boolean negate = false;
+            @Comment("Placeholder text for PLACEHOLDER. Not used by PERMISSION conditions.")
+            private String input = "";
+            @Comment("Comparison operator for PLACEHOLDER: ==, !=, >, >=, <, <=, contains, starts_with, or ends_with")
+            private String comparator = "==";
+            @Comment("Permission node for PERMISSION; expected comparison value for PLACEHOLDER")
+            private String value = "";
+
+            @NotNull
+            private CompletableFuture<Boolean> matches(@NotNull OnlineUser user) {
+                final CompletableFuture<Boolean> result = switch (type) {
+                    case PERMISSION -> CompletableFuture.completedFuture(user.hasPermission(value));
+                    case PLACEHOLDER -> user.resolvePlaceholder(input)
+                            .thenApply(resolved -> resolved.map(this::compare).orElse(false));
+                };
+                return result.thenApply(matches -> negate != matches);
+            }
+
+            private boolean compare(@NotNull String actual) {
+                return switch (comparator.toLowerCase(Locale.ENGLISH)) {
+                    case "=", "==" -> actual.equalsIgnoreCase(value);
+                    case "!=" -> !actual.equalsIgnoreCase(value);
+                    case ">", ">=", "<", "<=" -> compareNumbers(actual);
+                    case "contains" -> actual.toLowerCase(Locale.ENGLISH).contains(value.toLowerCase(Locale.ENGLISH));
+                    case "starts_with" -> actual.toLowerCase(Locale.ENGLISH).startsWith(value.toLowerCase(Locale.ENGLISH));
+                    case "ends_with" -> actual.toLowerCase(Locale.ENGLISH).endsWith(value.toLowerCase(Locale.ENGLISH));
+                    default -> false;
+                };
+            }
+
+            private boolean compareNumbers(@NotNull String actual) {
+                try {
+                    final int comparison = Double.compare(Double.parseDouble(actual), Double.parseDouble(value));
+                    return switch (comparator) {
+                        case ">" -> comparison > 0;
+                        case ">=" -> comparison >= 0;
+                        case "<" -> comparison < 0;
+                        case "<=" -> comparison <= 0;
+                        default -> false;
+                    };
+                } catch (NumberFormatException e) {
+                    return false;
+                }
+            }
+
+            private void validate(String path) {
+                if (type == null || comparator == null || value == null || input == null) {
+                    throw new IllegalStateException(path + " has an incomplete condition");
+                }
+                if (type == Type.PERMISSION && value.isBlank()) {
+                    throw new IllegalStateException(path + " has a PERMISSION condition without a value");
+                }
+                if (type == Type.PLACEHOLDER && input.isBlank()) {
+                    throw new IllegalStateException(path + " has a PLACEHOLDER condition without an input");
+                }
+                if (!Set.of("=", "==", "!=", ">", ">=", "<", "<=", "contains", "starts_with", "ends_with")
+                        .contains(comparator.toLowerCase(Locale.ENGLISH))) {
+                    throw new IllegalStateException(path + " has an unsupported comparator: " + comparator);
+                }
+            }
+
+            public enum Type {
+                PERMISSION,
+                PLACEHOLDER
+            }
+        }
     }
 
     @Comment("Action cooldown settings. Docs: https://william278.net/docs/huskhomes/cooldowns")

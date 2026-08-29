@@ -138,9 +138,7 @@ public abstract class Node implements Executable {
             final String worldName = args[index];
             final World.Environment environment = worldName.endsWith("_the_end") ? World.Environment.THE_END :
                     worldName.endsWith("nether") ? World.Environment.NETHER : World.Environment.OVERWORLD;
-            return Optional.of(plugin.getWorlds().stream()
-                    .filter(world -> world.getName().equalsIgnoreCase(worldName))
-                    .findFirst()
+            return Optional.of(plugin.findWorld(worldName)
                     .orElse(World.from(worldName, new UUID(0, 0), environment)));
         }
         return Optional.empty();
