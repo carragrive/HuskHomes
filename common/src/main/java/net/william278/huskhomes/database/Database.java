@@ -372,6 +372,18 @@ public abstract class Database {
      */
     public abstract Optional<Instant> getCooldown(@NotNull TransactionResolver.Action action, @NotNull User user);
 
+    @NotNull
+    protected final Instant readCooldownExpiry(@NotNull ResultSet resultSet,
+                                               @NotNull TransactionResolver.Action action) throws SQLException {
+        final Instant expiry = resultSet.getTimestamp("end_timestamp").toInstant();
+        final long duration = plugin.getSettings().getCooldowns().getCooldown(action);
+        if (duration <= 0) {
+            return expiry;
+        }
+        final Instant configuredExpiry = resultSet.getTimestamp("start_timestamp").toInstant().plusSeconds(duration);
+        return configuredExpiry.isBefore(expiry) ? configuredExpiry : expiry;
+    }
+
     /**
      * Set the cooldown of a {@link User} for a specific {@link TransactionResolver.Action}.
      *

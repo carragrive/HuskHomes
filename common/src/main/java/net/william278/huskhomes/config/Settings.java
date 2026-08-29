@@ -22,6 +22,7 @@ package net.william278.huskhomes.config;
 import com.google.common.collect.Lists;
 import de.exlll.configlib.Comment;
 import de.exlll.configlib.Configuration;
+import de.exlll.configlib.PostProcess;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -430,7 +431,7 @@ public final class Settings {
             private List<String> aliases = Lists.newArrayList("world");
             @Comment("Target server ID. Leave blank to use the current server.")
             private String server = "";
-            private String world = "world";
+            private String world = "minecraft:overworld";
             private Map<String, Profile> profiles = new LinkedHashMap<>(Map.of("default", new Profile()));
 
             // Conditional profiles by priority, `default` last. A conditionless `default` always matches;
@@ -509,11 +510,21 @@ public final class Settings {
             private Type type = Type.PERMISSION;
             private boolean negate = false;
             @Comment("Placeholder text for PLACEHOLDER. Not used by PERMISSION conditions.")
-            private String input = "";
+            private String input = null;
             @Comment("Comparison operator for PLACEHOLDER: ==, !=, >, >=, <, <=, contains, starts_with, or ends_with")
-            private String comparator = "==";
+            private String comparator = null;
             @Comment("Permission node for PERMISSION; expected comparison value for PLACEHOLDER")
             private String value = "";
+
+            @PostProcess
+            private void normalize() {
+                if (type == Type.PERMISSION) {
+                    input = null;
+                    comparator = null;
+                } else if (type == Type.PLACEHOLDER && comparator == null) {
+                    comparator = "==";
+                }
+            }
 
             @NotNull
             private CompletableFuture<Boolean> matches(@NotNull OnlineUser user) {
@@ -553,17 +564,21 @@ public final class Settings {
             }
 
             private void validate(String path) {
-                if (type == null || comparator == null || value == null || input == null) {
+                if (type == null || value == null) {
                     throw new IllegalStateException(path + " has an incomplete condition");
                 }
-                if (type == Type.PERMISSION && value.isBlank()) {
-                    throw new IllegalStateException(path + " has a PERMISSION condition without a value");
+                if (type == Type.PERMISSION) {
+                    if (value.isBlank()) {
+                        throw new IllegalStateException(path + " has a PERMISSION condition without a value");
+                    }
+                    return;
                 }
-                if (type == Type.PLACEHOLDER && input.isBlank()) {
+                if (input == null || input.isBlank()) {
                     throw new IllegalStateException(path + " has a PLACEHOLDER condition without an input");
                 }
-                if (!Set.of("=", "==", "!=", ">", ">=", "<", "<=", "contains", "starts_with", "ends_with")
-                        .contains(comparator.toLowerCase(Locale.ENGLISH))) {
+                if (comparator == null || !Set.of(
+                        "=", "==", "!=", ">", ">=", "<", "<=", "contains", "starts_with", "ends_with"
+                ).contains(comparator.toLowerCase(Locale.ENGLISH))) {
                     throw new IllegalStateException(path + " has an unsupported comparator: " + comparator);
                 }
             }

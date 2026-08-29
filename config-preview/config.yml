@@ -163,7 +163,7 @@ rtp:
         - overworld
       # Blank server means the current server.
       server: ''
-      world: world
+      world: minecraft:overworld
       profiles:
         default:
           priority: 0
@@ -179,7 +179,7 @@ rtp:
         - resources01
       # Must match this backend's server.yml and the proxy server ID.
       server: resources01
-      world: world
+      world: minecraft:overworld
       profiles:
         default:
           priority: 0
@@ -218,7 +218,7 @@ rtp:
       aliases:
         - nether
       server: resources01
-      world: world_nether
+      world: minecraft:the_nether
       profiles:
         default:
           priority: 0

@@ -28,6 +28,7 @@ import net.william278.huskhomes.position.PositionMeta;
 import net.william278.huskhomes.position.World;
 import net.william278.huskhomes.user.SavedUser;
 import net.william278.huskhomes.user.User;
+import net.william278.huskhomes.util.TransactionResolver;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -152,6 +153,18 @@ class JoinDataTests {
 
         assertTrue(database.ensureUser(renamed, stale));
         assertEquals("Renamed", database.getUser(USER_UUID).orElseThrow().getUsername());
+    }
+
+    @Test
+    void capsExistingCooldownAtTheConfiguredDuration() {
+        database.ensureUser(USER);
+        final Instant before = Instant.now();
+        database.setCooldown(TransactionResolver.Action.RANDOM_TELEPORT, USER, before.plusSeconds(3600));
+
+        final Instant expiry = database.getCooldown(TransactionResolver.Action.RANDOM_TELEPORT, USER).orElseThrow();
+
+        assertTrue(expiry.isAfter(before.plusSeconds(599)));
+        assertTrue(expiry.isBefore(before.plusSeconds(601)));
     }
 
     @NotNull

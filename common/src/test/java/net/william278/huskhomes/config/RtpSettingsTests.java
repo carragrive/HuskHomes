@@ -23,6 +23,7 @@ import de.exlll.configlib.YamlConfigurations;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -31,6 +32,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RtpSettingsTests {
+
+    @Test
+    void usesNamespacedDefaultWorld() {
+        final Settings.RtpSettings settings = load("language: en-gb").getRtp();
+
+        assertEquals("minecraft:overworld", settings.getDestinations().get("overworld").getWorld());
+    }
 
     @Test
     void loadsDestinationProfiles() {
@@ -109,6 +117,58 @@ class RtpSettingsTests {
         settings.validate();
         assertEquals(1, settings.getDestinations().get("overworld")
                 .getProfiles().get("default").getConditions().getAll().size());
+    }
+
+    @Test
+    void omitsPlaceholderFieldsFromPermissionConditions() {
+        final Settings settings = load("""
+                rtp:
+                  destinations:
+                    overworld:
+                      world: minecraft:overworld
+                      profiles:
+                        default:
+                          conditions:
+                            all:
+                              - type: PERMISSION
+                                input: unused
+                                comparator: '=='
+                                value: huskhomes.command.rtp.overworld
+                """);
+        settings.getRtp().validate();
+        final ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+        YamlConfigurations.write(
+                output,
+                Settings.class,
+                settings,
+                ConfigProvider.YAML_CONFIGURATION_PROPERTIES.build()
+        );
+        final String yaml = output.toString(StandardCharsets.UTF_8);
+
+        assertFalse(yaml.contains("input:"));
+        assertFalse(yaml.contains("comparator:"));
+    }
+
+    @Test
+    void defaultsPlaceholderComparatorToEquality() {
+        final Settings.RtpSettings settings = load("""
+                rtp:
+                  destinations:
+                    overworld:
+                      world: minecraft:overworld
+                      profiles:
+                        default:
+                          conditions:
+                            all:
+                              - type: PLACEHOLDER
+                                input: '%player_world%'
+                                value: world
+                """).getRtp();
+
+        settings.validate();
+        assertEquals("==", settings.getDestinations().get("overworld").getProfiles().get("default")
+                .getConditions().getAll().get(0).getComparator());
     }
 
     @Test
