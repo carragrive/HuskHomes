@@ -76,6 +76,11 @@ public class RtpCommand extends Command implements UserListTabCompletable {
         }
 
         final Settings.RtpSettings settings = plugin.getSettings().getRtp();
+        if (args.length == 0 && !settings.hasDefaultDestination()) {
+            plugin.getLocales().getLocale("error_rtp_no_destination_specified").ifPresent(executor::sendMessage);
+            return;
+        }
+
         final Optional<Map.Entry<String, Settings.RtpSettings.Destination>> destination = args.length == 0
                 ? settings.getDefault()
                 : settings.findDestination(args[0]);

@@ -340,7 +340,8 @@ public final class Settings {
         @Comment("RTP mode (LOCAL or CROSS_SERVER). CROSS_SERVER requires the global Redis cross-server setup.")
         private Mode mode = Mode.LOCAL;
 
-        @Comment("Destination used by /rtp when no destination is specified")?
+        @Comment({"Destination used by /rtp when no destination is specified.",
+                "Leave blank or set to 'none' to require one; /rtp on its own then errors instead."})
         private String defaultDestination = "overworld";
 
         @Comment("Normal distribution settings used to calculate distance from the center")
@@ -357,9 +358,15 @@ public final class Settings {
                     .findFirst();
         }
 
+        // Whether /rtp accepts being run with no destination
+        public boolean hasDefaultDestination() {
+            return defaultDestination != null && !defaultDestination.isBlank()
+                    && !defaultDestination.equalsIgnoreCase("none");
+        }
+
         @NotNull
         public Optional<Map.Entry<String, Destination>> getDefault() {
-            return findDestination(defaultDestination);
+            return hasDefaultDestination() ? findDestination(defaultDestination) : Optional.empty();
         }
 
         public void validate() {
@@ -385,7 +392,7 @@ public final class Settings {
                     }
                 });
             });
-            if (getDefault().isEmpty()) {
+            if (hasDefaultDestination() && getDefault().isEmpty()) {
                 throw new IllegalStateException("rtp.default_destination does not identify a configured destination");
             }
         }

@@ -150,7 +150,8 @@ cross_server:
 rtp:
   # LOCAL or CROSS_SERVER. Remote destinations require CROSS_SERVER and the global Redis setup.
   mode: CROSS_SERVER
-  # Destination used by /rtp when no destination is supplied.
+  # Destination used by /rtp when no destination is specified.
+  # Leave blank or set to 'none' to require one; /rtp on its own then errors instead.
   default_destination: resources
   distribution:
     mean: 0.75
