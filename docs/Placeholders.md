@@ -1,6 +1,6 @@
 HuskHomes (v4.0.5+) can register a hook providing a number of placeholders that will be replaced with their appropriate values.
 
-On Spigot/Paper, this requires [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI); on Fabric, [Fabric PlaceholderAPI](https://modrinth.com/mod/placeholder-api) is needed instead.
+This requires [PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI).
 
 ## List of placeholders
 | Placeholder                        | Description                                                         | Example Value       |

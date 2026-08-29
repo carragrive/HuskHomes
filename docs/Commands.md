@@ -322,34 +322,22 @@ This is a table of HuskHomes commands, how to use them, and their required permi
         <!-- /rtp command -->
         <tr><th colspan="5">Random teleport command</th></tr>
         <tr>
-            <td rowspan="5"><code>/rtp</code></td>
+            <td rowspan="3"><code>/rtp</code></td>
             <td><code>/rtp</code></td>
-            <td>Teleport randomly into the wild in the current world</td>
-            <td><code>huskhomes.command.rtp</code></td>
-            <td align="center">✅</td>
+            <td>Teleport using the configured default destination</td>
+            <td><code>huskhomes.command.rtp</code><br/><code>huskhomes.command.rtp.&lt;destination&gt;</code></td>
+            <td align="center">❌</td>
         </tr>
         <tr>
-            <td><code>/rtp &lt;player&gt;</code></td>
-            <td>Teleport another player randomly into the wild</td>
+            <td><code>/rtp &lt;destination&gt;</code></td>
+            <td>Teleport using a configured destination ID or alias</td>
+            <td><code>huskhomes.command.rtp</code><br/><code>huskhomes.command.rtp.&lt;destination&gt;</code></td>
+            <td align="center">❌</td>
+        </tr>
+        <tr>
+            <td><code>/rtp &lt;destination&gt; &lt;player&gt;</code></td>
+            <td>Teleport another player using a configured destination</td>
             <td><code>huskhomes.command.rtp.other</code></td>
-            <td align="center">❌</td>
-        </tr>
-        <tr>
-            <td><code>/rtp &lt;player&gt; &lt;world&gt;</code></td>
-            <td>Teleport randomly in a specified world</td>
-            <td><code>huskhomes.command.rtp.world</code></td>
-            <td align="center">❌</td>
-        </tr>
-        <tr>
-            <td><code>/rtp &lt;player&gt; &lt;world&gt; &lt;server&gt;</code></td>
-            <td>Teleport randomly in a specified world on a specified server</td>
-            <td><code>huskhomes.command.rtp.world</code></td>
-            <td align="center">❌</td>
-        </tr>
-        <tr>
-            <td><code>/rtp &lt;player&gt; &lt;server&gt;</code></td>
-            <td>Teleport randomly in the current world on a specified server</td>
-            <td><code>huskhomes.command.rtp.world</code></td>
             <td align="center">❌</td>
         </tr>
         <!-- /back command -->
@@ -495,6 +483,52 @@ You can change the teleport warmup time based on a permission node:
 * `huskhomes.teleport_warmup.<seconds>` — Determines how long this player has to wait before teleporting.
 
 HuskHomes will always take the highest node value present for this, regardless of the `stack_permission_limits` value.
+
+## Random teleport destinations
+
+Each destination in `rtp.destinations` has its own permission node, `huskhomes.command.rtp.<destination>`, built from
+the destination's config ID (aliases share the ID's node). The node is checked against the player being teleported and
+defaults to operators only, so grant it for every destination players should reach; `huskhomes.command.rtp.*` grants
+them all. Destinations a player lacks the node for are hidden from tab-completion. Console `/rtp <destination> <player>`
+executions skip this check.
+
+A destination can also be gated by conditions on its `default` profile (see below), which is evaluated per teleport and
+can use placeholder values. The permission node is the cheap, static check — it is the only one tab-completion can
+apply.
+
+## Random teleport profiles
+
+Every RTP destination has a required `default` profile and may have conditional profiles. Conditional profiles are
+checked from highest to lowest priority, then the `default` profile last; the first profile whose `conditions.all`
+entries match is used. Profiles are complete replacements and do not inherit options from lower-priority profiles.
+
+`PERMISSION` conditions check the player being teleported. `PLACEHOLDER` conditions require PlaceholderAPI and support
+`==`, `!=`, `>`, `>=`, `<`, `<=`, `contains`, `starts_with`, and `ends_with`. The selected profile and its inclusive Y
+bounds are sent to the target backend for cross-server RTP.
+
+For example, a Bedrock profile can require `huskhomes.rtp.bedrock` and set `max_y: 127`, while the default Nether
+profile permits Java players above the roof.
+
+### Denying a destination with conditions
+
+The `default` profile normally has no conditions, so it matches everyone and acts as the fallback. Give it conditions
+and it can reject a player instead: when no conditional profile matches and the `default` profile's own conditions
+fail, the teleport is refused and the player is sent the `error_rtp_conditions_not_met` message (`%1%` is the
+destination ID). Use this for gating that depends on live state — a placeholder for playtime, level, or rank — rather
+than a static permission node.
+
+### Destination clearance
+
+With `clearance.enabled: true`, a profile may carve solid blocks at the destination instead of rejecting it. Carving
+happens on the backend holding the destination, immediately before the teleport — after the warmup, and after the
+cross-server switch — so a cancelled teleport never breaks blocks. Carved blocks drop nothing.
+
+`width` must be an odd number from 1 to 15 and is centred on the player; `height` (2 to 16) is measured from their
+feet. `include_corners: false` leaves the four horizontal corners of the area intact. With `respect_protection: true`
+(the default), every block to be carved is checked with a `BlockBreakEvent` against the teleporting player, so land
+protection plugins can veto the destination. Position search already skips destinations containing unbreakable blocks
+(bedrock and similar); if a veto or a block change still blocks the carve at teleport time, nothing is broken and the
+player is sent the `error_rtp_destination_obstructed` message instead.
 
 ## Bypass permission nodes
 

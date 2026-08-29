@@ -1,7 +1,7 @@
 This page contains the configuration structure for HuskHomes.
 
 ## Configuration structure
-📁 `plugins/HuskHomes/` (Spigot) OR `config/huskhomes/` (Fabric)
+📁 `plugins/HuskHomes/`
   - 📄 `config.yml`: General plugin configuration
   - 📄 `server.yml`: (Cross-server setups only) Server ID configuration
   - 📄 `spawn.yml`: Local saved server spawn position. Use /setspawn to generate this file
@@ -152,19 +152,46 @@ cross_server:
   global_respawning: false
 # Random teleport (/rtp) settings.
 rtp:
-  # Radial region around the /spawn position where players CAN be randomly teleported.
-  # If no /spawn has been set, (0, 0) will be used instead.
-  region:
-    min: 500
-    max: 5000
-  # Mean of the normal distribution used to calculate the distance from the center of the world
-  distribution_mean: 0.75
-  # Standard deviation of the normal distribution for distributing players randomly
-  distribution_standard_deviation: 2.0
-  # List of worlds in which /rtp is disabled. Please note that /rtp does not work well in the nether.
-  restricted_worlds:
-    - world_nether
-    - world_the_end
+  # LOCAL or CROSS_SERVER. CROSS_SERVER requires the global Redis cross-server setup.
+  mode: LOCAL
+  # Destination used by /rtp when no destination is specified
+  default_destination: overworld
+  # Normal distribution settings used to calculate distance from the center
+  distribution:
+    mean: 0.75
+    standard_deviation: 2.0
+  # Named destinations used by /rtp [destination] [player]
+  destinations:
+    overworld:
+      aliases:
+        - world
+      # Leave blank for the current server
+      server: ''
+      world: world
+      profiles:
+        # Required fallback profile. Leave conditions empty to match everyone;
+        # add conditions to refuse players who fail them.
+        default:
+          priority: 0
+          conditions:
+            all: []
+          options:
+            direction: RANDOM
+            min_radius: 500
+            max_radius: 5000
+            # Player-foot Y coordinates; both bounds are inclusive
+            min_y: -64
+            max_y: 319
+            allow_underground: false
+            # Carve a safe space out of solid blocks at the destination
+            clearance:
+              enabled: false
+              # Every carved block must pass a BlockBreakEvent protection check
+              respect_protection: true
+              # Odd width (1-15) centered on the player, height (2-16) from their feet
+              width: 3
+              height: 3
+              include_corners: false
 # Action cooldown settings. Docs: https://william278.net/docs/huskhomes/cooldowns
 cooldowns:
   # Whether to apply a cooldown between performing certain actions

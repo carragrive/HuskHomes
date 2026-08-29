@@ -26,6 +26,7 @@ import net.william278.huskhomes.api.BaseHuskHomesAPI;
 import net.william278.huskhomes.command.Command;
 import net.william278.huskhomes.command.CommandProvider;
 import net.william278.huskhomes.config.ConfigProvider;
+import net.william278.huskhomes.config.RtpOptions;
 import net.william278.huskhomes.config.Server;
 import net.william278.huskhomes.config.Settings;
 import net.william278.huskhomes.database.DatabaseProvider;
@@ -47,6 +48,8 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.InputStream;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -61,6 +64,20 @@ public interface HuskHomes extends Task.Supplier, EventDispatcher, SavePositionP
         GsonProvider, DumpProvider {
 
     int BSTATS_BUKKIT_PLUGIN_ID = 8430;
+
+    @NotNull
+    Map<String, RtpOptions> getPendingRtpOptions();
+
+    default void rememberPendingRtpOptions(@NotNull String username, @NotNull RtpOptions options) {
+        final String key = username.toLowerCase(Locale.ENGLISH);
+        getPendingRtpOptions().put(key, options);
+        runAsyncDelayed(() -> getPendingRtpOptions().remove(key, options), 20L * 60L);
+    }
+
+    @NotNull
+    default Optional<RtpOptions> takePendingRtpOptions(@NotNull String username) {
+        return Optional.ofNullable(getPendingRtpOptions().remove(username.toLowerCase(Locale.ENGLISH)));
+    }
 
     /**
      * Load plugin systems.
@@ -208,6 +225,17 @@ public interface HuskHomes extends Task.Supplier, EventDispatcher, SavePositionP
      */
     @NotNull
     List<World> getWorlds();
+
+    /**
+     * Find a loaded world by its platform name or namespaced key (e.g. {@code minecraft:overworld}). A query with
+     * no namespace is resolved against the {@code minecraft} namespace.
+     *
+     * @param query the world name or namespaced key to look for
+     * @return the matching world, if one is loaded
+     */
+    default Optional<World> findWorld(@NotNull String query) {
+        return getWorlds().stream().filter(world -> world.matches(query)).findFirst();
+    }
 
     /**
      * Returns a list of enabled commands.

@@ -24,6 +24,7 @@ import lombok.Getter;
 import net.william278.desertwell.util.ThrowingConsumer;
 import net.william278.huskhomes.HuskHomes;
 import net.william278.huskhomes.command.BackCommand;
+import net.william278.huskhomes.config.RtpOptions;
 import net.william278.huskhomes.config.Settings;
 import net.william278.huskhomes.event.ITeleportEvent;
 import net.william278.huskhomes.network.Message;
@@ -33,10 +34,12 @@ import net.william278.huskhomes.position.Position;
 import net.william278.huskhomes.user.OnlineUser;
 import net.william278.huskhomes.util.TransactionResolver;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.logging.Level;
 
 /**
  * Represents the process of a {@link Teleportable} being teleported to a {@link Target}.
@@ -52,18 +55,22 @@ public class Teleport implements Completable {
     protected final Target target;
     protected final Type type;
     protected final List<TransactionResolver.Action> actions;
+    @Nullable
+    protected final RtpOptions rtpOptions;
     private final boolean async;
     protected final boolean updateLastPosition;
 
     protected Teleport(@NotNull OnlineUser executor, @NotNull Teleportable teleporter, @NotNull Target target,
                        @NotNull Type type, boolean updateLastPosition,
-                       @NotNull List<TransactionResolver.Action> actions, @NotNull HuskHomes plugin) {
+                       @NotNull List<TransactionResolver.Action> actions, @Nullable RtpOptions rtpOptions,
+                       @NotNull HuskHomes plugin) {
         this.plugin = plugin;
         this.executor = executor;
         this.teleporter = teleporter;
         this.target = target;
         this.type = type;
         this.actions = actions;
+        this.rtpOptions = rtpOptions;
         this.async = plugin.getSettings().getGeneral().isTeleportAsync();
         this.updateLastPosition = updateLastPosition && plugin.getCommand(BackCommand.class)
                 .map(command -> executor.hasPermission(command.getPermission())
@@ -122,23 +129,48 @@ public class Teleport implements Completable {
         }
 
         fireEvent((event) -> {
+            final Position target = (Position) this.target;
+            if (!plugin.getSettings().getCrossServer().isEnabled()
+                    || target.getServer().equals(plugin.getServerName())) {
+                if (type == Type.RANDOM_TELEPORT && rtpOptions != null) {
+                    plugin.prepareRtpDestination(teleporter, target, rtpOptions).whenComplete((ready, error) -> {
+                        if (error != null) {
+                            plugin.log(Level.SEVERE, "Failed to prepare an RTP destination", error);
+                        }
+                        if (error != null || !ready) {
+                            plugin.getLocales().getLocale("error_rtp_destination_obstructed")
+                                    .ifPresent(teleporter::sendMessage);
+                            return;
+                        }
+                        plugin.runAsync(() -> completeLocalPositionTeleport(teleporter, target));
+                    });
+                    return;
+                }
+                completeLocalPositionTeleport(teleporter, target);
+                return;
+            }
+
             performTransactions();
             if (updateLastPosition && canReturnToWorld(teleporter)) {
                 plugin.getDatabase().setLastPosition(teleporter, teleporter.getPosition());
             }
-
-            final Position target = (Position) this.target;
-            if (!plugin.getSettings().getCrossServer().isEnabled()
-                    || target.getServer().equals(plugin.getServerName())) {
-                teleporter.teleportLocally(target, async);
-                this.displayTeleportingComplete(teleporter);
-                teleporter.handleInvulnerability();
-                return;
-            }
-
             plugin.getDatabase().setCurrentTeleport(teleporter, this);
             plugin.getBroker().ifPresent(b -> ((PluginMessageBroker) b).changeServer(teleporter, target.getServer()));
         });
+    }
+
+    private void completeLocalPositionTeleport(@NotNull OnlineUser teleporter, @NotNull Position target) {
+        try {
+            performTransactions();
+            if (updateLastPosition && canReturnToWorld(teleporter)) {
+                plugin.getDatabase().setLastPosition(teleporter, teleporter.getPosition());
+            }
+            teleporter.teleportLocally(target, async);
+            this.displayTeleportingComplete(teleporter);
+            teleporter.handleInvulnerability();
+        } catch (TeleportationException e) {
+            e.displayMessage(teleporter);
+        }
     }
 
     private void executeRemote() throws TeleportationException {

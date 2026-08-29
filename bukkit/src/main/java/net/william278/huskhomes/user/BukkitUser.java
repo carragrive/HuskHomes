@@ -19,6 +19,7 @@
 
 package net.william278.huskhomes.user;
 
+import me.clip.placeholderapi.PlaceholderAPI;
 import net.william278.huskhomes.BukkitHuskHomes;
 import net.william278.huskhomes.network.PluginMessageBroker;
 import net.william278.huskhomes.position.Location;
@@ -98,6 +99,18 @@ public class BukkitUser extends OnlineUser {
                         PermissionAttachmentInfo::getPermission,
                         PermissionAttachmentInfo::getValue, (a, b) -> b
                 ));
+    }
+
+    @Override
+    @NotNull
+    public CompletableFuture<Optional<String>> resolvePlaceholder(@NotNull String input) {
+        if (!plugin.isDependencyAvailable("PlaceholderAPI")) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
+        final CompletableFuture<Optional<String>> result = new CompletableFuture<>();
+        plugin.runSync(() -> result.complete(Optional.ofNullable(PlaceholderAPI.setPlaceholders(bukkitPlayer, input))),
+                this);
+        return result;
     }
 
     @Override

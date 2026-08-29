@@ -33,6 +33,7 @@ import net.william278.huskhomes.api.HuskHomesAPI;
 import net.william278.huskhomes.command.BukkitCommand;
 import net.william278.huskhomes.command.Command;
 import net.william278.huskhomes.config.Locales;
+import net.william278.huskhomes.config.RtpOptions;
 import net.william278.huskhomes.config.Server;
 import net.william278.huskhomes.config.Settings;
 import net.william278.huskhomes.config.Spawn;
@@ -59,20 +60,16 @@ import org.bstats.bukkit.Metrics;
 import org.bstats.charts.SimplePie;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
-import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.plugin.java.JavaPluginLoader;
 import org.bukkit.plugin.messaging.PluginMessageListener;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.annotations.TestOnly;
 import space.arim.morepaperlib.MorePaperLib;
 import space.arim.morepaperlib.scheduling.AsynchronousScheduler;
 import space.arim.morepaperlib.scheduling.AttachedScheduler;
 import space.arim.morepaperlib.scheduling.GracefulScheduling;
 import space.arim.morepaperlib.scheduling.RegionalScheduler;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.logging.Level;
@@ -93,6 +90,7 @@ public class BukkitHuskHomes extends JavaPlugin implements HuskHomes, BukkitTask
     private final Set<UUID> warmupDamagedUsers = Sets.newConcurrentHashSet();
     private final Map<UUID, OnlineUser> onlineUserMap = Maps.newHashMap();
     private final Map<String, List<User>> globalUserList = Maps.newConcurrentMap();
+    private final Map<String, RtpOptions> pendingRtpOptions = Maps.newConcurrentMap();
     private final List<Command> commands = Lists.newArrayList();
 
     @Setter
@@ -119,13 +117,6 @@ public class BukkitHuskHomes extends JavaPlugin implements HuskHomes, BukkitTask
     @Setter
     @Nullable
     private Server serverName;
-
-    // Super constructor for unit testing
-    @TestOnly
-    protected BukkitHuskHomes(@NotNull JavaPluginLoader loader, @NotNull PluginDescriptionFile description,
-                              @NotNull File dataFolder, @NotNull File file) {
-        super(loader, description, dataFolder, file);
-    }
 
     @Override
     public void onLoad() {
@@ -205,7 +196,7 @@ public class BukkitHuskHomes extends JavaPlugin implements HuskHomes, BukkitTask
     @NotNull
     @Override
     public Version getPluginVersion() {
-        return Version.fromString(getDescription().getVersion());
+        return Version.fromString(getPluginMeta().getVersion());
     }
 
     @Override
@@ -375,7 +366,8 @@ public class BukkitHuskHomes extends JavaPlugin implements HuskHomes, BukkitTask
             return World.from(
                     world.getName(),
                     world.getUID(),
-                    World.Environment.match(world.getEnvironment().name())
+                    World.Environment.match(world.getEnvironment().name()),
+                    world.getKey().asString()
             );
         }
 

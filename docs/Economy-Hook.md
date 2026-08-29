@@ -1,21 +1,8 @@
 HuskHomes supports restricting certain actions behind an economic cost. Players must have enough money in their account to perform the action, otherwise the action will not be allowed. The cost of the action will be deducted from the player's account just before the action is performed.
 
 ## Setup
-<details>
-<summary>Spigot & Paper setup</summary>
-
-> **Applies to:** Spigot, Paper
-
-To enable the Economy Hook on a Spigot/Paper server, install both [Vault](https://www.spigotmc.org/resources/vault.34315/) and a compatible economy plugin. Then, set `enabled` to `true` under the `economy` section of [`config.yml`](config-files).
-</details>
-
-<details>
-<summary>Fabric setup</summary>
-
-> **Applies to:** Fabric
-
-To enable the Economy Hook on a Fabric server, the [Impactor Economy](https://modrinth.com/mod/impactor) mod must be installed to provide an API for plugins to perform economy operations. Then, set `enabled` to `true` under the `economy` section of [`config.yml`](config-files).
-</details>
+Install [Vault](https://www.spigotmc.org/resources/vault.34315/) and a compatible economy plugin. Then set `enabled`
+to `true` under the `economy` section of [`config.yml`](config-files).
 
 ### Bypassing economy checks
 Players with the `huskhomes.bypass_economy_checks` [permission node](commands) bypass economy checks and can perform economy actions without paying.

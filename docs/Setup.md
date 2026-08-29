@@ -1,22 +1,20 @@
-This will walk you through installing HuskHomes on your Spigot or Fabric server, or proxy network of servers.
+This will walk you through installing HuskHomes on your Paper server or proxy network of Paper servers.
 
 ## Requirements
 > **Note:** If the plugin fails to load, please check that you are not running an [incompatible version combination](Compatibility)
 
-* A Spigot (1.20.1+) or Fabric (latest Minecraft version) _Minecraft: Java Edition_ server running on Java 17+
+* A Paper (1.20.1+) _Minecraft: Java Edition_ server running on Java 17+
 * (For proxy network support) A proxy server (Velocity, BungeeCord) and MySQL (v8.0+)/MariaDB/PostgreSQL database
 * (For optional [[Redis support]]) A Redis database (v5.0+)
 
 ## Download HuskHomes for your server
-Download the correct jar file for your server from the [latest release page](https://github.com/WiIIiam278/HuskHomes/releases/latest):
-* the `HuskHomes-Paper` jar for Spigot or Paper servers
-* the `HuskHomes-Fabric` jar for Fabric servers
+Download the `HuskHomes-Paper` jar from the [latest release page](https://github.com/WiIIiam278/HuskHomes/releases/latest).
 
 ## Single-server Setup Instructions
-These instructions are for simply installing HuskHomes on one Spigot or Fabric server.
+These instructions are for installing HuskHomes on one Paper server.
 
 ### 1. Install the jar
-- Place the plugin jar file in the `/plugins/` directory of your Spigot server, or the `/mods` directory of your Fabric server.
+- Place the plugin jar file in the server's `/plugins/` directory.
 ### 2. Restart the server and configure
 - Start, then stop your server to let HuskHomes generate the config file.
 - You can now edit the [config](Config-Files) and locales to your liking.
@@ -26,16 +24,16 @@ These instructions are for simply installing HuskHomes on one Spigot or Fabric s
 -----
 
 ## Multi-server Setup Instructions
-These instructions are for installing HuskHomes on multiple Spigot or Fabric servers and having them network together. A MySQL database (v8.0+) is required.
+These instructions are for installing HuskHomes on multiple Paper servers and networking them together. A MySQL database (v8.0+) is required.
 
 ### 1. Install the jar
-- Place the plugin jar file in the `/plugins/` directory of each Spigot server, or the `/mods` directory of your Fabric server.
+- Place the plugin jar file in the `/plugins/` directory of each Paper server.
 - You do not need to install HuskHomes as a proxy plugin.
 ### 2. Restart the server and configure
 - Start, then stop every server to let HuskHomes generate the config file.
-- Advanced users: If you'd prefer, you can just create one config.yml file and create symbolic links in each `/plugins/HuskHomes/` (`/config/huskhomes/` on Fabric) folder to it to make updating it easier.
+- Advanced users can create one `config.yml` and link it into each `/plugins/HuskHomes/` folder.
 ### 3. Configure servers to use cross-server mode
-- Navigate to the HuskHomes [config](Config-Files) file on each server (`~/plugins/HuskHomes/config.yml` on Spigot, `~/config/huskhomes/config.yml` on Fabric)
+- Navigate to the HuskHomes [config](Config-Files) file on each server (`plugins/HuskHomes/config.yml`).
 - Under `database`, set `type` to `MYSQL`, `MARIADB` or `POSTGRESQL` (depending on which type of database you wish to use)
 - Under `mysql`/`credentials`, enter the credentials of your MySQL, MariaDB or PostgreSQL database server.
 - Scroll down and look for the `cross_server` section. Set `enabled` to `true`.
@@ -51,10 +49,11 @@ These instructions are for installing HuskHomes on multiple Spigot or Fabric ser
 <details>
 <summary>Cross-Server RTP</summary>
 
-When using Cross-Server RTP 3 things must be true:
-1. You must set `rtp.cross-server` to `true`
-2. You must be using Redis as your message broker
-3. The server names in `rtp.random_target_servers` must match the `server.yml` & Proxy values!
+When using Cross-Server RTP, three things must be true:
+
+1. Set `rtp.mode` to `CROSS_SERVER`.
+2. Enable the global `cross_server` settings and use `REDIS` as the broker.
+3. Each destination's `server` must match that backend's `server.yml` and proxy server ID.
 </details>
 
 ## Next steps

@@ -36,6 +36,8 @@ import java.util.UUID;
 @NoArgsConstructor
 public class World {
 
+    public static final String DEFAULT_NAMESPACE = "minecraft";
+
     @Expose
     private String name;
     @Expose
@@ -44,15 +46,41 @@ public class World {
     @Nullable
     @Getter(AccessLevel.NONE)
     private Environment environment = null;
+    // The world's namespaced key (e.g. minecraft:overworld), where the platform provides one
+    @Expose
+    @Nullable
+    private String key = null;
+
+    @NotNull
+    public static World from(@NotNull String name, @NotNull UUID uuid, @Nullable Environment environment) {
+        return new World(name, uuid, environment, null);
+    }
 
     @NotNull
     public static World from(@NotNull String name, @NotNull UUID uuid) {
-        return new World(name, uuid, null);
+        return from(name, uuid, null);
     }
 
     @NotNull
     public static World from(@NotNull String name) {
         return from(name, UUID.randomUUID());
+    }
+
+    /**
+     * Check whether this world is identified by the given string; either its platform name or its namespaced key.
+     * A query with no namespace is resolved against the {@code minecraft} namespace, so {@code overworld} and
+     * {@code minecraft:overworld} both match the overworld.
+     *
+     * @param query the world name or namespaced key to test
+     * @return whether this world is identified by the query
+     */
+    public boolean matches(@NotNull String query) {
+        return name.equalsIgnoreCase(query) || (key != null && key.equalsIgnoreCase(namespaced(query)));
+    }
+
+    @NotNull
+    private static String namespaced(@NotNull String query) {
+        return query.indexOf(':') >= 0 ? query : String.format("%s:%s", DEFAULT_NAMESPACE, query);
     }
 
     @NotNull

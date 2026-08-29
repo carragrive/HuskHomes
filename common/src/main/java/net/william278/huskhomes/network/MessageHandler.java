@@ -20,6 +20,7 @@
 package net.william278.huskhomes.network;
 
 import net.william278.huskhomes.HuskHomes;
+import net.william278.huskhomes.config.RtpOptions;
 import net.william278.huskhomes.position.Home;
 import net.william278.huskhomes.position.Position;
 import net.william278.huskhomes.position.Warp;
@@ -124,16 +125,25 @@ public interface MessageHandler {
     }
 
     default void handleRtpRequestLocation(@NotNull Message message) {
-        final Optional<World> requested = message.getPayload().getString().flatMap(
-                name -> getPlugin().getWorlds().stream().filter(w -> w.getName().equalsIgnoreCase(name)).findFirst());
-        requested.map(world -> getPlugin().getRandomTeleportEngine().getRandomPosition(world, new String[0]))
+        final RtpOptions options = message.getPayload().getRtpOptions().orElseGet(RtpOptions::new);
+        final Optional<World> requested = message.getPayload().getString().flatMap(getPlugin()::findWorld);
+        requested.map(world -> getPlugin().getRandomTeleportEngine().getRandomPosition(
+                        world, new String[0], options))
                 .orElse(CompletableFuture.completedFuture(Optional.empty()))
                 .thenAccept(
-                        (teleport) -> Message.builder()
-                                .type(Message.MessageType.RTP_LOCATION)
-                                .target(message.getSender(), Message.TargetType.PLAYER)
-                                .payload(Payload.position(teleport.orElse(null)))
-                                .build().send(getBroker(), null)
+                        (teleport) -> {
+                            teleport.ifPresent(position -> getPlugin()
+                                    .rememberPendingRtpOptions(message.getSender(), options));
+                            Message.builder()
+                                    .type(Message.MessageType.RTP_LOCATION)
+                                    .target(message.getSender(), Message.TargetType.PLAYER)
+                                    .payload(Payload.rtpPosition(
+                                            teleport.orElse(null),
+                                            options,
+                                            message.getPayload().getRtpTimed().orElse(true)
+                                    ))
+                                    .build().send(getBroker(), null);
+                        }
                 );
 
     }
@@ -148,9 +158,11 @@ public interface MessageHandler {
 
         Teleport.builder(getPlugin())
                 .teleporter(receiver)
+                .type(Teleport.Type.RANDOM_TELEPORT)
                 .actions(TransactionResolver.Action.RANDOM_TELEPORT)
+                .rtpOptions(message.getPayload().getRtpOptions().orElseGet(RtpOptions::new))
                 .target(position.get())
-                .buildAndComplete(true);
+                .buildAndComplete(message.getPayload().getRtpTimed().orElse(true));
     }
 
     default void handleUpdateCaches() {

@@ -20,7 +20,10 @@
 package net.william278.huskhomes.util;
 
 import net.william278.huskhomes.HuskHomes;
+import net.william278.huskhomes.config.RtpOptions;
 import net.william278.huskhomes.position.Location;
+import net.william278.huskhomes.position.Position;
+import net.william278.huskhomes.user.OnlineUser;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -37,6 +40,31 @@ public interface SavePositionProvider {
      * @return a {@link CompletableFuture} with an optional safe ground position, if one could be found
      */
     CompletableFuture<Optional<Location>> findSafeGroundLocation(@NotNull Location location);
+
+    /**
+     * Returns a safe ground location using the supplied RTP options.
+     *
+     * @param location the {@link Location} to find a safe ground location for
+     * @param options  RTP height and underground-search options
+     * @return a {@link CompletableFuture} with an optional safe ground position, if one could be found
+     */
+    default CompletableFuture<Optional<Location>> findSafeGroundLocation(@NotNull Location location,
+                                                                          @NotNull RtpOptions options) {
+        return findSafeGroundLocation(location);
+    }
+
+    /**
+     * Verify and, when configured, carve an RTP destination immediately before teleporting.
+     *
+     * @param user     player being teleported
+     * @param position destination position
+     * @param options  selected RTP options
+     * @return whether the destination is ready for teleportation
+     */
+    default CompletableFuture<Boolean> prepareRtpDestination(@NotNull OnlineUser user, @NotNull Position position,
+                                                              @NotNull RtpOptions options) {
+        return CompletableFuture.completedFuture(true);
+    }
 
     /**
      * Returns if the block, by provided identifier, is unsafe to stand on.

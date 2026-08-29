@@ -22,6 +22,7 @@ package net.william278.huskhomes.network;
 import com.fatboyindustrial.gsonjavatime.Converters;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import net.william278.huskhomes.config.RtpOptions;
 import net.william278.huskhomes.position.Position;
 import net.william278.huskhomes.position.World;
 import org.jetbrains.annotations.NotNull;
@@ -56,6 +57,11 @@ public class MessageSerializationTests {
                     .payload(Payload.string("TestString"))
                     .build(),
             Message.builder()
+                    .type(Message.MessageType.REQUEST_RTP_LOCATION)
+                    .target("TestServer", Message.TargetType.SERVER)
+                    .payload(Payload.rtpLocationRequest("world_nether", new RtpOptions(), true))
+                    .build(),
+            Message.builder()
                     .type(Message.MessageType.TELEPORT_TO_POSITION)
                     .target("TestTarget", Message.TargetType.PLAYER)
                     .payload(Payload.position(
@@ -84,6 +90,18 @@ public class MessageSerializationTests {
         Assertions.assertEquals(
                 message.getPayload().getString().isPresent(),
                 deserialized.getPayload().getString().isPresent()
+        );
+        Assertions.assertEquals(
+                message.getPayload().getRtpOptions().isPresent(),
+                deserialized.getPayload().getRtpOptions().isPresent()
+        );
+        Assertions.assertEquals(
+                message.getPayload().getRtpOptions().map(RtpOptions::getMaxY),
+                deserialized.getPayload().getRtpOptions().map(RtpOptions::getMaxY)
+        );
+        Assertions.assertEquals(
+                message.getPayload().getRtpTimed(),
+                deserialized.getPayload().getRtpTimed()
         );
     }
 

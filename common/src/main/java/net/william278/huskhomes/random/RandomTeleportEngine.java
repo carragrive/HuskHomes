@@ -20,6 +20,7 @@
 package net.william278.huskhomes.random;
 
 import net.william278.huskhomes.HuskHomes;
+import net.william278.huskhomes.config.RtpOptions;
 import net.william278.huskhomes.position.Position;
 import net.william278.huskhomes.position.World;
 import org.jetbrains.annotations.NotNull;
@@ -84,5 +85,18 @@ public abstract class RandomTeleportEngine {
      */
     public abstract CompletableFuture<Optional<Position>> getRandomPosition(@NotNull World world,
                                                                             @NotNull String[] args);
+
+    /**
+     * Gets a random position using the supplied destination profile options.
+     *
+     * @param world           The world to find a random position in
+     * @param args            The arguments to pass to the random teleport engine
+     * @param options         The selected destination profile options
+     * @return An Optional position, if one could be found
+     */
+    public CompletableFuture<Optional<Position>> getRandomPosition(@NotNull World world, @NotNull String[] args,
+                                                                    @NotNull RtpOptions options) {
+        return getRandomPosition(world, args);
+    }
 
 }

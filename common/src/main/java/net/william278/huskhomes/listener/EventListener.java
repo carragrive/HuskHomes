@@ -23,6 +23,7 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import net.william278.huskhomes.HuskHomes;
 import net.william278.huskhomes.command.BackCommand;
+import net.william278.huskhomes.config.RtpOptions;
 import net.william278.huskhomes.config.Settings;
 import net.william278.huskhomes.network.Broker;
 import net.william278.huskhomes.network.Message;
@@ -39,6 +40,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.logging.Level;
 
 /**
  * A handler for when events take place.
@@ -142,18 +144,61 @@ public abstract class EventListener {
                 return;
             }
 
-            try {
-                teleporter.teleportLocally(
-                        (Position) teleport.getTarget(),
-                        plugin.getSettings().getGeneral().isTeleportAsync()
-                );
-            } catch (TeleportationException e) {
-                e.displayMessage(teleporter);
+            // Random teleports validate (and, if configured, carve) the destination on arrival
+            final Optional<RtpOptions> options = teleport.getType() == Teleport.Type.RANDOM_TELEPORT
+                    ? plugin.takePendingRtpOptions(teleporter.getName())
+                    : Optional.empty();
+            if (options.isPresent()) {
+                handleInboundRandomTeleport(teleporter, teleport, options.get());
+                return;
             }
-            plugin.getDatabase().clearCurrentTeleport(teleporter);
-            teleport.displayTeleportingComplete(teleporter);
-            teleporter.handleInvulnerability();
+
+            completeInboundTeleport(teleporter, teleport);
         });
+    }
+
+    /**
+     * Prepare an inbound random teleport destination before completing the teleport.
+     *
+     * @param teleporter user to handle the teleport for
+     * @param teleport   the stored teleport to complete
+     * @param options    the RTP options the destination was generated with
+     */
+    private void handleInboundRandomTeleport(@NotNull OnlineUser teleporter, @NotNull Teleport teleport,
+                                             @NotNull RtpOptions options) {
+        plugin.prepareRtpDestination(teleporter, (Position) teleport.getTarget(), options)
+                .whenComplete((ready, error) -> {
+                    if (error != null) {
+                        plugin.log(Level.SEVERE, "Failed to prepare an inbound RTP destination", error);
+                    }
+                    if (error != null || !Boolean.TRUE.equals(ready)) {
+                        plugin.runAsync(() -> plugin.getDatabase().clearCurrentTeleport(teleporter));
+                        plugin.getLocales().getLocale("error_rtp_destination_obstructed")
+                                .ifPresent(teleporter::sendMessage);
+                        return;
+                    }
+                    plugin.runAsync(() -> completeInboundTeleport(teleporter, teleport));
+                });
+    }
+
+    /**
+     * Complete an inbound cross-server teleport.
+     *
+     * @param teleporter user to teleport
+     * @param teleport   the stored teleport to complete
+     */
+    private void completeInboundTeleport(@NotNull OnlineUser teleporter, @NotNull Teleport teleport) {
+        try {
+            teleporter.teleportLocally(
+                    (Position) teleport.getTarget(),
+                    plugin.getSettings().getGeneral().isTeleportAsync()
+            );
+        } catch (TeleportationException e) {
+            e.displayMessage(teleporter);
+        }
+        plugin.getDatabase().clearCurrentTeleport(teleporter);
+        teleport.displayTeleportingComplete(teleporter);
+        teleporter.handleInvulnerability();
     }
 
     /**
