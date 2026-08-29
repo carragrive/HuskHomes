@@ -171,7 +171,7 @@ rtp:
         - world
       # Leave blank for the current server
       server: ''
-      world: world
+      world: minecraft:overworld
       profiles:
         # Required fallback profile. Leave conditions empty to match everyone;
         # add conditions to refuse players who fail them.

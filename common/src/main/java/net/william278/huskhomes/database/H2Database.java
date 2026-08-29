@@ -429,7 +429,7 @@ public class H2Database extends Database {
 
                 final ResultSet resultSet = statement.executeQuery();
                 if (resultSet.next()) {
-                    return Optional.of(resultSet.getTimestamp("end_timestamp").toInstant());
+                    return Optional.of(readCooldownExpiry(resultSet, action));
                 }
             }
         } catch (SQLException e) {
