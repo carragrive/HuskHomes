@@ -19,6 +19,7 @@
 
 package net.william278.huskhomes;
 
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import de.exlll.configlib.ConfigurationException;
 import net.kyori.adventure.key.Key;
@@ -35,14 +36,17 @@ import net.william278.huskhomes.hook.HookProvider;
 import net.william278.huskhomes.hook.PluginHook;
 import net.william278.huskhomes.listener.ListenerProvider;
 import net.william278.huskhomes.manager.ManagerProvider;
+import net.william278.huskhomes.network.Broker;
 import net.william278.huskhomes.network.BrokerProvider;
 import net.william278.huskhomes.position.Position;
 import net.william278.huskhomes.position.World;
 import net.william278.huskhomes.random.RandomTeleportProvider;
 import net.william278.huskhomes.user.ConsoleUser;
+import net.william278.huskhomes.user.OnlineUser;
 import net.william278.huskhomes.user.UserProvider;
 import net.william278.huskhomes.util.*;
 import org.intellij.lang.annotations.Subst;
+import org.jetbrains.annotations.Blocking;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -63,8 +67,6 @@ public interface HuskHomes extends Task.Supplier, EventDispatcher, SavePositionP
         AudiencesProvider, UserProvider, TextValidator, ManagerProvider, ListenerProvider, CommandProvider,
         GsonProvider, DumpProvider {
 
-    int BSTATS_BUKKIT_PLUGIN_ID = 8430;
-
     @NotNull
     Map<String, RtpOptions> getPendingRtpOptions();
 
@@ -77,6 +79,84 @@ public interface HuskHomes extends Task.Supplier, EventDispatcher, SavePositionP
     @NotNull
     default Optional<RtpOptions> takePendingRtpOptions(@NotNull String username) {
         return Optional.ofNullable(getPendingRtpOptions().remove(username.toLowerCase(Locale.ENGLISH)));
+    }
+
+    // Last world per server for each online user, by user UUID; loaded on join so lookups never hit the database
+    @NotNull
+    Map<UUID, Map<String, World>> getLastWorldCache();
+
+    // Open a cache session for a joining user
+    @NotNull
+    default Map<String, World> beginLastWorldCache(@NotNull OnlineUser user) {
+        final Map<String, World> session = Maps.newConcurrentMap();
+        getLastWorldCache().put(user.getUuid(), session);
+        return session;
+    }
+
+    @Blocking
+    default Optional<Map<String, World>> cacheLastWorlds(@NotNull OnlineUser user,
+                                                         @NotNull Map<String, World> session) {
+        final Map<String, World> worlds = Maps.newConcurrentMap();
+        worlds.putAll(getDatabase().getLastWorlds(user));
+
+        worlds.putAll(session);
+        return getLastWorldCache().replace(user.getUuid(), session, worlds)
+                ? Optional.of(worlds) : Optional.empty();
+    }
+
+    // Write this server's world from the session; serialized so a stale async write can't win
+    @Blocking
+    default void persistLastWorld(@NotNull OnlineUser user, @NotNull Map<String, World> session) {
+        synchronized (session) {
+            if (getLastWorldCache().get(user.getUuid()) != session) {
+                return;
+            }
+            Optional.ofNullable(session.get(getServerName()))
+                    .ifPresent(world -> getDatabase().setLastWorld(user, getServerName(), world));
+        }
+    }
+
+    // Drop entries for worlds this server no longer has. Catches deletions while down, which fire no unload event
+    @Blocking
+    default void reconcileLastWorlds(@NotNull Set<UUID> loadedWorlds) {
+        final int pruned = getDatabase().deleteLastWorldsExcept(getServerName(), loadedWorlds);
+        getLastWorldCache().values().forEach(worlds -> worlds.entrySet()
+                .removeIf(entry -> entry.getKey().equals(getServerName())
+                        && !loadedWorlds.contains(entry.getValue().getUuid())));
+        if (pruned > 0) {
+            log(Level.INFO, String.format("Pruned %s last world entr%s for worlds that no longer exist",
+                    pruned, pruned == 1 ? "y" : "ies"));
+        }
+    }
+
+    // Drop rows and cached entries for a world deleted from this server
+    @Blocking
+    default void forgetDeletedWorld(@NotNull World world) {
+        getDatabase().deleteLastWorlds(getServerName(), world.getUuid());
+        getLastWorldCache().values().forEach(worlds -> worlds.entrySet()
+                .removeIf(entry -> entry.getKey().equals(getServerName())
+                        && entry.getValue().getUuid().equals(world.getUuid())));
+        log(Level.INFO, String.format("Forgot last world entries for deleted world %s", world.getName()));
+    }
+
+    // Get the world a user was last in on a server
+    default Optional<World> getLastWorld(@NotNull OnlineUser user, @NotNull String server) {
+        // Cache is only written on join and quit, so use the live world for this server
+        if (server.equals(getServerName())) {
+            return Optional.of(user.getPosition().getWorld());
+        }
+        return Optional.ofNullable(getLastWorldCache().get(user.getUuid())).map(worlds -> worlds.get(server));
+    }
+
+    // Find which server a globally-online user is connected to
+    default Optional<String> findUserServer(@NotNull String username) {
+        if (getOnlineUser(username).isPresent()) {
+            return Optional.of(getServerName());
+        }
+        return getGlobalUserList().entrySet().stream()
+                .filter(entry -> entry.getValue().stream().anyMatch(u -> u.getName().equalsIgnoreCase(username)))
+                .map(Map.Entry::getKey)
+                .findFirst();
     }
 
     /**
@@ -118,17 +198,14 @@ public interface HuskHomes extends Task.Supplier, EventDispatcher, SavePositionP
             loadHooks(PluginHook.Register.ON_ENABLE);
             registerHooks(PluginHook.Register.ON_ENABLE);
             loadAPI();
-            if (getPluginVersion().getMetadata().isBlank()) {
-                loadMetrics();
-            }
         } catch (Throwable e) {
             log(Level.SEVERE, "An error occurred whilst enabling HuskHomesX", e);
             disablePlugin();
             return;
         }
         log(Level.INFO, String.format("Successfully enabled HuskHomesX v%s", getPluginVersion()));
-        checkForUpdates();
         loadAfterLoadHooks();
+
     }
 
     /**
@@ -140,8 +217,8 @@ public interface HuskHomes extends Task.Supplier, EventDispatcher, SavePositionP
         log(Level.INFO, String.format("Disabling HuskHomesX v%s...", getPluginVersion()));
         try {
             unloadHooks(PluginHook.Register.values());
-            closeDatabase();
             closeBroker();
+            closeDatabase();
             cancelTasks();
             unloadAPI();
         } catch (Throwable e) {
@@ -165,13 +242,6 @@ public interface HuskHomes extends Task.Supplier, EventDispatcher, SavePositionP
     default void unloadAPI() {
         BaseHuskHomesAPI.unregister();
     }
-
-    /**
-     * Load plugin metrics.
-     *
-     * @since 4.8
-     */
-    void loadMetrics();
 
     /**
      * Disable the plugin.
