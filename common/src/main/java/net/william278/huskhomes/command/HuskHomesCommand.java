@@ -26,7 +26,6 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.william278.desertwell.about.AboutMenu;
-import net.william278.desertwell.util.UpdateChecker;
 import net.william278.huskhomes.HuskHomes;
 import net.william278.huskhomes.config.Locales;
 import net.william278.huskhomes.hook.PluginHook;
@@ -55,11 +54,9 @@ public class HuskHomesCommand extends Command implements UserListTabCompletable 
             "dump", true,
             "homeslots", true,
             "import", true,
-            "delete", true,
-            "update", true
+            "delete", true
     );
 
-    private final UpdateChecker updateChecker;
     private final AboutMenu aboutMenu;
 
     protected HuskHomesCommand(@NotNull HuskHomes plugin) {
@@ -70,13 +67,13 @@ public class HuskHomesCommand extends Command implements UserListTabCompletable 
         );
         addAdditionalPermissions(SUB_COMMANDS);
 
-        this.updateChecker = plugin.getUpdateChecker();
         this.aboutMenu = AboutMenu.builder()
-                .title(Component.text("HuskHomes"))
+                .title(Component.text("HuskHomesX"))
                 .description(Component.text("The powerful & intuitive homes, warps, and teleportation suite"))
                 .version(plugin.getPluginVersion())
-                .credits("Author",
-                        AboutMenu.Credit.of("William278").description("Click to visit website").url("https://william278.net"))
+                .credits("Authors",
+                        AboutMenu.Credit.of("William278").description("Click to visit website").url("https://william278.net"),
+                        AboutMenu.Credit.of("carragrive"))
                 .credits("Maintainers",
                         AboutMenu.Credit.of("QarthO").description("Click to visit their GitHub").url("https://github.com/QarthO"),
                         AboutMenu.Credit.of("TrueWinter").description("Click to visit their GitHub").url("https://github.com/TrueWinter"))
@@ -189,15 +186,6 @@ public class HuskHomesCommand extends Command implements UserListTabCompletable 
                             .ifPresent(executor::sendMessage);
                 }
             }
-            case "update" -> updateChecker.check().thenAccept(checked -> {
-                if (checked.isUpToDate()) {
-                    plugin.getLocales().getLocale("up_to_date", plugin.getPluginVersion().toString())
-                            .ifPresent(executor::sendMessage);
-                    return;
-                }
-                plugin.getLocales().getLocale("update_available", checked.getLatestVersion().toString(),
-                        plugin.getPluginVersion().toString()).ifPresent(executor::sendMessage);
-            });
             default -> plugin.getLocales().getLocale("error_invalid_syntax", getUsage())
                     .ifPresent(executor::sendMessage);
         }

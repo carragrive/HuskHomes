@@ -63,10 +63,10 @@ public interface DumpProvider {
                 .viewerUrl(VIEWER_URL)
                 .projectMeta(ProjectMeta.builder()
                         .id("huskhomes")
-                        .name("HuskHomes")
+                        .name("HuskHomesX")
                         .version(getPlugin().getPluginVersion().toString())
                         .md5("unknown")
-                        .author("William278")
+                        .author("William278, carragrive")
                         .sourceCode("https://github.com/WiIIiam278/HuskHomes")
                         .website("https://william278.net/project/huskhomes")
                         .support("https://discord.gg/tVYhJfyDWG")
@@ -78,7 +78,7 @@ public interface DumpProvider {
                 ))
                 .compatibilityRules(List.of(
                         getCompatibilityWarning("CMI", "CMI may cause compatibility issues with " +
-                                "HuskHomes. If you're using Vault, ensure the CMI-compatible version is in use."),
+                                "HuskHomesX. If you're using Vault, ensure the CMI-compatible version is in use."),
                         getCompatibilityWarning("Essentials", "Command conflicts likely. " +
                                 "Check to resolve: https://william278.net/docs/huskhomes/command-conflicts"),
                         getCompatibilityWarning("floodgate", "Ensure the home_delimiter is set to" +

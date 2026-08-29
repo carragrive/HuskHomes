@@ -123,12 +123,12 @@ public class PostgreSqlDatabase extends Database {
             plugin.log(Level.INFO, "Creating PostgreSQL database tables");
             try {
                 executeScript(getConnection(), "postgresql_schema.sql");
+                setSchemaVersion(Migration.getLatestVersion());
             } catch (SQLException e) {
                 plugin.log(Level.SEVERE, "Failed to create PostgreSQL database tables", e);
                 setLoaded(false);
                 return;
             }
-            setSchemaVersion(Migration.getLatestVersion());
             plugin.log(Level.INFO, "PostgreSQL database tables created!");
             setLoaded(true);
             return;
@@ -179,17 +179,21 @@ public class PostgreSqlDatabase extends Database {
     }
 
     @Override
-    public void setSchemaVersion(int version) {
+    public void setSchemaVersion(int version) throws SQLException {
         if (getSchemaVersion() == -1) {
             try (Connection connection = getConnection()) {
                 try (PreparedStatement insertStatement = connection.prepareStatement(format("""
                         INSERT INTO "%meta_data%" ("schema_version")
                         VALUES (?)"""))) {
                     insertStatement.setInt(1, version);
-                    insertStatement.executeUpdate();
+                    try {
+                        insertStatement.executeUpdate();
+                    } catch (SQLException e) {
+                        if (getSchemaVersion() < version) {
+                            throw e;
+                        }
+                    }
                 }
-            } catch (SQLException e) {
-                plugin.log(Level.SEVERE, "Failed to insert schema version in table", e);
             }
             return;
         }
@@ -197,12 +201,12 @@ public class PostgreSqlDatabase extends Database {
         try (Connection connection = getConnection()) {
             try (PreparedStatement statement = connection.prepareStatement(format("""
                     UPDATE "%meta_data%"
-                    SET "schema_version" = ?;"""))) {
+                    SET "schema_version" = ?
+                    WHERE "schema_version" < ?;"""))) {
                 statement.setInt(1, version);
+                statement.setInt(2, version);
                 statement.executeUpdate();
             }
-        } catch (SQLException e) {
-            plugin.log(Level.SEVERE, "Failed to update schema version in table", e);
         }
     }
 
@@ -384,25 +388,31 @@ public class PostgreSqlDatabase extends Database {
     @Override
     public Optional<SavedUser> getUser(@NotNull UUID uuid) {
         try (Connection connection = getConnection()) {
-            try (PreparedStatement statement = connection.prepareStatement(format("""
-                    SELECT "uuid", "username", "home_slots", "ignoring_requests"
-                    FROM "%player_data%"
-                    WHERE "uuid"=?"""))) {
-
-                statement.setString(1, uuid.toString());
-
-                final ResultSet resultSet = statement.executeQuery();
-                if (resultSet.next()) {
-                    return Optional.of(new SavedUser(
-                            User.of(UUID.fromString(resultSet.getString("uuid")),
-                                    resultSet.getString("username")),
-                            resultSet.getInt("home_slots"),
-                            resultSet.getBoolean("ignoring_requests")
-                    ));
-                }
-            }
+            return getUser(connection, uuid);
         } catch (SQLException e) {
             plugin.log(Level.SEVERE, "Failed to fetch a player from uuid from the database", e);
+        }
+        return Optional.empty();
+    }
+
+    @NotNull
+    private Optional<SavedUser> getUser(@NotNull Connection connection, @NotNull UUID uuid) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(format("""
+                SELECT "uuid", "username", "home_slots", "ignoring_requests"
+                FROM "%player_data%"
+                WHERE "uuid"=?"""))) {
+
+            statement.setString(1, uuid.toString());
+
+            final ResultSet resultSet = statement.executeQuery();
+            if (resultSet.next()) {
+                return Optional.of(new SavedUser(
+                        User.of(UUID.fromString(resultSet.getString("uuid")),
+                                resultSet.getString("username")),
+                        resultSet.getInt("home_slots"),
+                        resultSet.getBoolean("ignoring_requests")
+                ));
+            }
         }
         return Optional.empty();
     }
@@ -423,6 +433,15 @@ public class PostgreSqlDatabase extends Database {
             } catch (SQLException e) {
                 plugin.log(Level.SEVERE, "Failed to delete player positions from the database", e);
                 return;
+            }
+
+            try (PreparedStatement statement = connection.prepareStatement(format("""
+                    DELETE FROM "%last_world_data%"
+                    WHERE "user_uuid"=?;"""))) {
+                statement.setString(1, uuid.toString());
+                statement.executeUpdate();
+            } catch (SQLException e) {
+                plugin.log(Level.SEVERE, "Failed to delete player last worlds from the database", e);
             }
 
             try (PreparedStatement statement = connection.prepareStatement(format("""
@@ -497,44 +516,50 @@ public class PostgreSqlDatabase extends Database {
 
     @Override
     public List<Home> getHomes(@NotNull User user) {
-        final List<Home> userHomes = new ArrayList<>();
         try (Connection connection = getConnection()) {
-            try (PreparedStatement statement = connection.prepareStatement(format("""
-                    SELECT "%home_data%"."uuid" AS "home_uuid", "owner_uuid", "name", "description", "tags",
-                        "timestamp", "x", "y", "z", "yaw", "pitch", "world_name", "world_uuid", "server_name", "public"
-                    FROM "%home_data%"
-                    INNER JOIN "%saved_position_data%"
-                        ON "%home_data%"."saved_position_id"="%saved_position_data%"."id"
-                    INNER JOIN "%position_data%"
-                        ON "%saved_position_data%"."position_id"="%position_data%"."id"
-                    INNER JOIN "%player_data%"
-                        ON "%home_data%"."owner_uuid"="%player_data%"."uuid"
-                    WHERE "owner_uuid"=?
-                    ORDER BY "name";"""))) {
-
-                statement.setString(1, user.getUuid().toString());
-
-                final ResultSet resultSet = statement.executeQuery();
-                while (resultSet.next()) {
-                    userHomes.add(Home.from(resultSet.getDouble("x"),
-                            resultSet.getDouble("y"),
-                            resultSet.getDouble("z"),
-                            resultSet.getFloat("yaw"),
-                            resultSet.getFloat("pitch"),
-                            World.from(resultSet.getString("world_name"),
-                                    UUID.fromString(resultSet.getString("world_uuid"))),
-                            resultSet.getString("server_name"),
-                            PositionMeta.from(resultSet.getString("name"),
-                                    resultSet.getString("description"),
-                                    resultSet.getTimestamp("timestamp").toInstant(),
-                                    resultSet.getString("tags")),
-                            UUID.fromString(resultSet.getString("home_uuid")),
-                            user,
-                            resultSet.getBoolean("public")));
-                }
-            }
+            return getHomes(connection, user);
         } catch (SQLException e) {
             plugin.log(Level.SEVERE, "Failed to query the database for home data for:" + user.getName());
+        }
+        return new ArrayList<>();
+    }
+
+    @NotNull
+    private List<Home> getHomes(@NotNull Connection connection, @NotNull User user) throws SQLException {
+        final List<Home> userHomes = new ArrayList<>();
+        try (PreparedStatement statement = connection.prepareStatement(format("""
+                SELECT "%home_data%"."uuid" AS "home_uuid", "owner_uuid", "name", "description", "tags",
+                    "timestamp", "x", "y", "z", "yaw", "pitch", "world_name", "world_uuid", "server_name", "public"
+                FROM "%home_data%"
+                INNER JOIN "%saved_position_data%"
+                    ON "%home_data%"."saved_position_id"="%saved_position_data%"."id"
+                INNER JOIN "%position_data%"
+                    ON "%saved_position_data%"."position_id"="%position_data%"."id"
+                INNER JOIN "%player_data%"
+                    ON "%home_data%"."owner_uuid"="%player_data%"."uuid"
+                WHERE "owner_uuid"=?
+                ORDER BY "name";"""))) {
+
+            statement.setString(1, user.getUuid().toString());
+
+            final ResultSet resultSet = statement.executeQuery();
+            while (resultSet.next()) {
+                userHomes.add(Home.from(resultSet.getDouble("x"),
+                        resultSet.getDouble("y"),
+                        resultSet.getDouble("z"),
+                        resultSet.getFloat("yaw"),
+                        resultSet.getFloat("pitch"),
+                        World.from(resultSet.getString("world_name"),
+                                UUID.fromString(resultSet.getString("world_uuid"))),
+                        resultSet.getString("server_name"),
+                        PositionMeta.from(resultSet.getString("name"),
+                                resultSet.getString("description"),
+                                resultSet.getTimestamp("timestamp").toInstant(),
+                                resultSet.getString("tags")),
+                        UUID.fromString(resultSet.getString("home_uuid")),
+                        user,
+                        resultSet.getBoolean("public")));
+            }
         }
         return userHomes;
     }
@@ -833,6 +858,23 @@ public class PostgreSqlDatabase extends Database {
     }
 
     @Override
+    public Optional<PendingTeleport> getPendingTeleport(@NotNull UUID uuid) {
+        try (Connection connection = getConnection()) {
+            try (PreparedStatement statement = connection.prepareStatement(format("""
+                    SELECT "x", "y", "z", "yaw", "pitch", "world_name", "world_uuid", "server_name", "type"
+                    FROM "%teleport_data%"
+                    INNER JOIN "%position_data%" ON "%teleport_data%"."destination_id" = "%position_data%"."id"
+                    WHERE "player_uuid"=?"""))) {
+                statement.setString(1, uuid.toString());
+                return readPendingTeleport(statement.executeQuery());
+            }
+        } catch (SQLException e) {
+            plugin.log(Level.SEVERE, "Failed to query the pending teleport of " + uuid, e);
+        }
+        return Optional.empty();
+    }
+
+    @Override
     public Optional<Teleport> getCurrentTeleport(@NotNull OnlineUser onlineUser) {
         try (Connection connection = getConnection()) {
             try (PreparedStatement statement = connection.prepareStatement(format("""
@@ -1033,6 +1075,109 @@ public class PostgreSqlDatabase extends Database {
         } catch (SQLException e) {
             plugin.log(Level.SEVERE, "Failed to set the offline position of " + user.getName(), e);
         }
+    }
+
+    @Override
+    @NotNull
+    public Map<String, World> getLastWorlds(@NotNull User user) {
+        try (Connection connection = getConnection()) {
+            return getLastWorlds(connection, user);
+        } catch (SQLException e) {
+            plugin.log(Level.SEVERE, "Failed to query the last worlds of " + user.getName(), e);
+        }
+        return new HashMap<>();
+    }
+
+    @NotNull
+    private Map<String, World> getLastWorlds(@NotNull Connection connection, @NotNull User user) throws SQLException {
+        final Map<String, World> lastWorlds = new HashMap<>();
+        try (PreparedStatement statement = connection.prepareStatement(format("""
+                SELECT "server_name", "world_name", "world_uuid", "world_key"
+                FROM "%last_world_data%"
+                WHERE "user_uuid"=?;"""))) {
+            statement.setString(1, user.getUuid().toString());
+
+            final ResultSet resultSet = statement.executeQuery();
+            while (resultSet.next()) {
+                lastWorlds.put(resultSet.getString("server_name"), readLastWorld(resultSet));
+            }
+        }
+        return lastWorlds;
+    }
+
+    @Override
+    @NotNull
+    public JoinData getJoinData(@NotNull User user) {
+        try (Connection connection = getConnection()) {
+            return new JoinData(
+                    getUser(connection, user.getUuid()).orElse(null),
+                    getLastWorlds(connection, user),
+                    getHomes(connection, user)
+            );
+        } catch (SQLException e) {
+            plugin.log(Level.SEVERE, "Failed to query join data for " + user.getName(), e);
+        }
+        return JoinData.empty();
+    }
+
+    @Override
+    public void setLastWorld(@NotNull User user, @NotNull String server, @NotNull World world) {
+        try (Connection connection = getConnection()) {
+            try (PreparedStatement statement = connection.prepareStatement(format("""
+                    INSERT INTO "%last_world_data%"
+                        ("user_uuid", "server_name", "world_name", "world_uuid", "world_key")
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT ("user_uuid", "server_name")
+                    DO UPDATE SET "world_name"=excluded."world_name",
+                                  "world_uuid"=excluded."world_uuid",
+                                  "world_key"=excluded."world_key";"""))) {
+                statement.setString(1, user.getUuid().toString());
+                statement.setString(2, server);
+                statement.setString(3, world.getName());
+                statement.setString(4, world.getUuid().toString());
+                statement.setString(5, world.getKey());
+                statement.executeUpdate();
+            }
+        } catch (SQLException e) {
+            plugin.log(Level.SEVERE, "Failed to set the last world of " + user.getName(), e);
+        }
+    }
+
+    @Override
+    public void deleteLastWorlds(@NotNull String server, @NotNull UUID worldUuid) {
+        try (Connection connection = getConnection()) {
+            try (PreparedStatement statement = connection.prepareStatement(format("""
+                    DELETE FROM "%last_world_data%"
+                    WHERE "server_name"=? AND "world_uuid"=?;"""))) {
+                statement.setString(1, server);
+                statement.setString(2, worldUuid.toString());
+                statement.executeUpdate();
+            }
+        } catch (SQLException e) {
+            plugin.log(Level.SEVERE, "Failed to delete last worlds for " + worldUuid, e);
+        }
+    }
+
+    @Override
+    public int deleteLastWorldsExcept(@NotNull String server, @NotNull Collection<UUID> worldUuids) {
+        final String query = worldUuids.isEmpty()
+                ? "DELETE FROM \"%last_world_data%\" WHERE \"server_name\"=?"
+                : "DELETE FROM \"%last_world_data%\" WHERE \"server_name\"=? "
+                + "AND (\"world_uuid\" IS NULL OR \"world_uuid\" NOT IN ("
+                + getPlaceholders(worldUuids.size()) + "));";
+        try (Connection connection = getConnection()) {
+            try (PreparedStatement statement = connection.prepareStatement(format(query))) {
+                statement.setString(1, server);
+                int index = 2;
+                for (UUID worldUuid : worldUuids) {
+                    statement.setString(index++, worldUuid.toString());
+                }
+                return statement.executeUpdate();
+            }
+        } catch (SQLException e) {
+            plugin.log(Level.SEVERE, "Failed to prune last worlds on " + server, e);
+        }
+        return 0;
     }
 
     @Override

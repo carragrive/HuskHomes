@@ -26,6 +26,7 @@ import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -108,6 +109,42 @@ class RtpSettingsTests {
         settings.validate();
         assertEquals(1, settings.getDestinations().get("overworld")
                 .getProfiles().get("default").getConditions().getAll().size());
+    }
+
+    @Test
+    void treatsBlankAndNoneDefaultDestinationsAsUnset() {
+        for (String value : new String[]{"''", "none", "NONE"}) {
+            final Settings.RtpSettings settings = load("""
+                    rtp:
+                      default_destination: %s
+                      destinations:
+                        overworld:
+                          world: world
+                          profiles:
+                            default:
+                              priority: 0
+                    """.formatted(value)).getRtp();
+
+            settings.validate();
+            assertFalse(settings.hasDefaultDestination());
+            assertTrue(settings.getDefault().isEmpty());
+        }
+    }
+
+    @Test
+    void rejectsDefaultDestinationNamingNoConfiguredDestination() {
+        final Settings.RtpSettings settings = load("""
+                rtp:
+                  default_destination: resources
+                  destinations:
+                    overworld:
+                      world: world
+                      profiles:
+                        default:
+                          priority: 0
+                """).getRtp();
+
+        assertThrows(IllegalStateException.class, settings::validate);
     }
 
     private Settings load(String yaml) {

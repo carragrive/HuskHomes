@@ -21,6 +21,8 @@ package net.william278.huskhomes.listener;
 
 import net.william278.huskhomes.BukkitHuskHomes;
 import net.william278.huskhomes.config.Settings;
+import net.william278.huskhomes.position.World;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.block.data.type.Bed;
 import org.bukkit.block.data.type.RespawnAnchor;
@@ -31,9 +33,20 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.*;
+import org.bukkit.event.server.ServerLoadEvent;
+import org.bukkit.event.world.WorldUnloadEvent;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.File;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
 public class BukkitEventListener extends EventListener implements Listener {
+
+    // Ticks to wait after an unload before deciding a world was deleted
+    private static final long WORLD_DELETE_CHECK_DELAY = 100L;
 
     protected boolean usePaperEvents = false;
 
@@ -46,6 +59,15 @@ public class BukkitEventListener extends EventListener implements Listener {
         getPlugin().getServer().getPluginManager().registerEvents(this, getPlugin());
     }
 
+    // Read any pending cross-server teleport during the handshake, so the join handler doesn't wait on the database
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onAsyncPlayerPreLogin(AsyncPlayerPreLoginEvent event) {
+        if (event.getLoginResult() != AsyncPlayerPreLoginEvent.Result.ALLOWED) {
+            return;
+        }
+        getPlugin().prefetchInboundTeleport(event.getUniqueId());
+    }
+
     @EventHandler(priority = EventPriority.NORMAL)
     public void onPlayerJoin(PlayerJoinEvent event) {
         getPlugin().getOnlineUserMap().remove(event.getPlayer().getUniqueId());
@@ -55,6 +77,18 @@ public class BukkitEventListener extends EventListener implements Listener {
     @EventHandler(priority = EventPriority.NORMAL)
     public void onPlayerLeave(PlayerQuitEvent event) {
         super.handlePlayerLeave(getPlugin().getOnlineUser(event.getPlayer()));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerChangedWorld(PlayerChangedWorldEvent event) {
+        final World world = BukkitHuskHomes.Adapter.adapt(event.getPlayer().getWorld());
+        final var user = getPlugin().getOnlineUser(event.getPlayer());
+        final Map<String, World> session = getPlugin().getLastWorldCache().get(user.getUuid());
+        if (session == null) {
+            return;
+        }
+        session.put(getPlugin().getServerName(), world);
+        getPlugin().runAsync(() -> getPlugin().persistLastWorld(user, session));
     }
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
@@ -123,6 +157,30 @@ public class BukkitEventListener extends EventListener implements Listener {
                 getPlugin().getOnlineUser(event.getPlayer()),
                 BukkitHuskHomes.Adapter.adapt(location, getPlugin().getServerName())
         );
+    }
+
+    // No delete event exists, but a deletion unloads first: still unloaded and folder gone means deleted
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onWorldUnload(WorldUnloadEvent event) {
+        final World world = BukkitHuskHomes.Adapter.adapt(event.getWorld());
+        final File folder = event.getWorld().getWorldFolder();
+        getPlugin().runSyncDelayed(() -> {
+            if (Bukkit.getWorld(world.getUuid()) != null || folder.exists()) {
+                return;
+            }
+            getPlugin().runAsync(() -> getPlugin().forgetDeletedWorld(world));
+        }, null, WORLD_DELETE_CHECK_DELAY);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onServerLoad(ServerLoadEvent event) {
+        final Set<UUID> loadedWorlds = getPlugin().getWorlds().stream()
+                .map(World::getUuid)
+                .collect(Collectors.toUnmodifiableSet());
+        getPlugin().runAsync(() -> {
+            getPlugin().reconcileLastWorlds(loadedWorlds);
+            getPlugin().getBroker().ifPresent(broker -> broker.markReady());
+        });
     }
 
     @Override

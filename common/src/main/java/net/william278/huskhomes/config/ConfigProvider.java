@@ -32,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
+import java.util.Set;
 import java.util.logging.Level;
 
 public interface ConfigProvider {
@@ -110,7 +111,9 @@ public interface ConfigProvider {
                             + "renamed to '" + backup.getFileName() + "'. Manually convert any custom messages to "
                             + "MiniMessage before copying them into the newly-generated locale file.");
                 } else {
-                    setLocales(store.load(path));
+                    final Locales locales = store.load(path);
+                    addMissingLocales(store, locales, path);
+                    setLocales(locales);
                     return;
                 }
             } catch (IOException e) {
@@ -124,6 +127,22 @@ public interface ConfigProvider {
             setLocales(locales);
         } catch (Throwable e) {
             throw new IllegalStateException("An error occurred loading the locales (invalid lang code?)", e);
+        }
+    }
+
+    // Add locales introduced by updates to an existing file, keeping the user's own entries
+    private void addMissingLocales(@NotNull YamlConfigurationStore<Locales> store, @NotNull Locales locales,
+                                   @NotNull Path path) {
+        try (InputStream input = getResource(String.format("locales/%s.yml", getSettings().getLanguage()))) {
+            final Set<String> added = locales.addMissingLocales(store.read(input));
+            if (added.isEmpty()) {
+                return;
+            }
+            store.save(locales, path);
+            getPlugin().log(Level.INFO, String.format("Added %s new message(s) to %s (%s)",
+                    added.size(), path.getFileName(), String.join(", ", added)));
+        } catch (Throwable e) {
+            getPlugin().log(Level.WARNING, "Failed to add new messages to " + path.getFileName(), e);
         }
     }
 

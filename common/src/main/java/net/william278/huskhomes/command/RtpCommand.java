@@ -45,7 +45,7 @@ public class RtpCommand extends Command implements UserListTabCompletable {
     protected RtpCommand(@NotNull HuskHomes plugin) {
         super(List.of("rtp"), "[destination] [player]", plugin);
 
-        // Register huskhomes.command.rtp.<destination> for every configured destination
+        // Register huskhomes.command.rtp.<destination> per destination
         final Map<String, Boolean> permissions = new HashMap<>(Map.of("other", true));
         plugin.getSettings().getRtp().getDestinations().keySet()
                 .forEach(id -> permissions.put(id.toLowerCase(Locale.ENGLISH), true));
@@ -76,6 +76,11 @@ public class RtpCommand extends Command implements UserListTabCompletable {
         }
 
         final Settings.RtpSettings settings = plugin.getSettings().getRtp();
+        if (args.length == 0 && !settings.hasDefaultDestination()) {
+            plugin.getLocales().getLocale("error_rtp_no_destination_specified").ifPresent(executor::sendMessage);
+            return;
+        }
+
         final Optional<Map.Entry<String, Settings.RtpSettings.Destination>> destination = args.length == 0
                 ? settings.getDefault()
                 : settings.findDestination(args[0]);
@@ -85,7 +90,7 @@ public class RtpCommand extends Command implements UserListTabCompletable {
             return;
         }
 
-        // Console executions bypass the teleporter's destination permission
+        // Console bypasses the destination permission
         if (executor instanceof OnlineUser && !canUseDestination(teleporter.get(), destination.get().getKey())) {
             plugin.getLocales().getLocale("error_no_permission").ifPresent(executor::sendMessage);
             return;
@@ -98,7 +103,7 @@ public class RtpCommand extends Command implements UserListTabCompletable {
                 return;
             }
 
-            // No profile matched; the default profile's conditions rejected this user
+            // Nothing matched; the default profile rejected them
             if (profile.isEmpty()) {
                 plugin.getLocales().getLocale("error_rtp_conditions_not_met", destination.get().getKey())
                         .ifPresent(executor::sendMessage);
@@ -125,13 +130,7 @@ public class RtpCommand extends Command implements UserListTabCompletable {
         };
     }
 
-    /**
-     * Check a user against the {@code huskhomes.command.rtp.<destination>} permission node.
-     *
-     * @param user          the user to check
-     * @param destinationId the ID of the destination being used
-     * @return whether the user may use the destination
-     */
+    // Check huskhomes.command.rtp.<destination>
     private boolean canUseDestination(@NotNull CommandUser user, @NotNull String destinationId) {
         return hasPermission(user, destinationId.toLowerCase(Locale.ENGLISH));
     }
@@ -173,6 +172,18 @@ public class RtpCommand extends Command implements UserListTabCompletable {
             plugin.getLocales().getLocale("error_rtp_randomization_timeout")
                     .ifPresent(executor::sendMessage);
             return;
+        }
+        switch (plugin.getServerState(targetServer)) {
+            case STARTING -> {
+                plugin.getLocales().getLocale("error_server_loading").ifPresent(executor::sendMessage);
+                return;
+            }
+            case STOPPING, UNKNOWN -> {
+                plugin.getLocales().getLocale("error_invalid_server").ifPresent(executor::sendMessage);
+                return;
+            }
+            case READY -> {
+            }
         }
         Message.builder()
                 .type(Message.MessageType.REQUEST_RTP_LOCATION)

@@ -66,6 +66,15 @@ public class TeleportationException extends IllegalStateException {
             case WORLD_NOT_FOUND -> plugin.getLocales()
                     .getLocale("error_invalid_world")
                     .ifPresent(user::sendMessage);
+            case NO_SERVER_ACCESS -> plugin.getLocales()
+                    .getLocale("error_no_server_access")
+                    .ifPresent(user::sendMessage);
+            case SERVER_LOADING -> plugin.getLocales()
+                    .getLocale("error_server_loading")
+                    .ifPresent(user::sendMessage);
+            case SERVER_UNAVAILABLE -> plugin.getLocales()
+                    .getLocale("error_invalid_server")
+                    .ifPresent(user::sendMessage);
             default -> {
                 // Silent; no message
             }
@@ -84,7 +93,10 @@ public class TeleportationException extends IllegalStateException {
         WORLD_NOT_FOUND,
         ILLEGAL_TARGET_COORDINATES,
         CANNOT_TELEPORT_TO_SELF,
-        TELEPORTER_INVALID
+        TELEPORTER_INVALID,
+        NO_SERVER_ACCESS,
+        SERVER_LOADING,
+        SERVER_UNAVAILABLE
     }
 
 }

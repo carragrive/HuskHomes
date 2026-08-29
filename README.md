@@ -1,6 +1,6 @@
 <!--suppress ALL -->
 <p align="center">
-    <img src="images/banner.png" alt="HuskHomes" />
+    <img src="images/banner.png" alt="HuskHomesX" />
     <a href="https://github.com/WiIIiam278/HuskHomes/actions/workflows/ci.yml">
         <img src="https://img.shields.io/github/actions/workflow/status/WiIIiam278/HuskHomes/ci.yml?branch=master&logo=github"/>
     </a> 
@@ -23,7 +23,7 @@
 </p>
 <br/>
 
-**HuskHomes** is a powerful, intuitive and flexible teleportation plugin for _Minecraft: Java Edition_ servers. HuskHomes contains a meaty&mdash;but not bloated&mdash;set of player teleportation features, including set homes, warps, public homes, teleport requests, previous and offline position teleporting&mdash;and more. 
+**HuskHomesX** is a powerful, intuitive and flexible teleportation plugin for _Minecraft: Java Edition_ servers. HuskHomesX contains a meaty&mdash;but not bloated&mdash;set of player teleportation features, including set homes, warps, public homes, teleport requests, previous and offline position teleporting&mdash;and more.
 
 This fork targets Paper servers. With a shared database, it also works cross-server across a proxy network.
 
@@ -41,7 +41,7 @@ This fork targets Paper servers. With a shared database, it also works cross-ser
 **⭐ Extensible API & open-source** &mdash; Still not enough? Extend the plugin with the HuskHomes API. Or, submit a pull request—we're open-source!
 
 ## Development
-To build HuskHomes, run the following in the root of the repository (building requires Java 25):
+To build HuskHomesX, run the following in the root of the repository (building requires Java 25):
 
 ```bash
 ./gradlew clean build
@@ -63,7 +63,6 @@ Translations of the plugin locales are welcome to help make the plugin more acce
 - [Modrinth](https://modrinth.com/plugin/huskhomes) &mdash; View the plugin Modrinth page (also on [Hangar](https://hangar.papermc.io/William278/HuskHomes))
 - [Issues](https://github.com/WiIIiam278/HuskHomes/issues) &mdash; File a bug report or feature request
 - [Discord](https://discord.gg/tVYhJfyDWG) &mdash; Get help, ask questions
-- [bStats](https://bstats.org/plugin/bukkit/HuskHomes/8430) &mdash; View plugin metrics
 
 ---
 &copy; [William278](https://william278.net/), 2025. Licensed under the Apache-2.0 License.

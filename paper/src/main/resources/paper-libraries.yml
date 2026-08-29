@@ -1,4 +1,4 @@
-# Dependencies for HuskHomes on Paper
+# Dependencies for HuskHomesX on Paper
 libraries:
   - 'redis.clients:jedis:${jedis_version}'
   - 'com.mysql:mysql-connector-j:${mysql_driver_version}'

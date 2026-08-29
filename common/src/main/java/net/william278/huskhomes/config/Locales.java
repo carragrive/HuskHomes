@@ -33,6 +33,8 @@ import org.jetbrains.annotations.TestOnly;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Loaded locales used by the plugin to display styled messages.
@@ -44,12 +46,12 @@ public class Locales {
 
     static final String CONFIG_HEADER = """
             ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-            ┃      HuskHomes Locales       ┃
-            ┃    Developed by William278   ┃
+            ┃      HuskHomesX Locales      ┃
+            ┃  By William278 & carragrive  ┃
             ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
             ┣╸ See plugin about menu for international locale credits
             ┣╸ Formatted in MiniMessage: https://docs.papermc.io/adventure/minimessage/
-            ┗╸ Translate HuskHomes: https://william278.net/docs/huskhomes/translations""";
+            ┗╸ Translate HuskHomesX: https://william278.net/docs/huskhomes/translations""";
 
     protected static final String DEFAULT_LOCALE = "en-gb";
 
@@ -60,6 +62,15 @@ public class Locales {
 
     static boolean isMineDownFormatted(@NotNull String content) {
         return content.contains("Formatted in MineDown");
+    }
+
+    // Copy in defaults missing here, returning the IDs added; existing entries are untouched
+    @NotNull
+    Set<String> addMissingLocales(@NotNull Locales defaults) {
+        final Set<String> missing = new TreeSet<>(defaults.locales.keySet());
+        missing.removeAll(locales.keySet());
+        missing.forEach(id -> locales.put(id, defaults.locales.get(id)));
+        return missing;
     }
 
     @TestOnly

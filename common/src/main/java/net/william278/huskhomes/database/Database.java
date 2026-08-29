@@ -29,6 +29,7 @@ import net.william278.huskhomes.position.Home;
 import net.william278.huskhomes.position.Position;
 import net.william278.huskhomes.position.SavedPosition;
 import net.william278.huskhomes.position.Warp;
+import net.william278.huskhomes.position.World;
 import net.william278.huskhomes.teleport.Teleport;
 import net.william278.huskhomes.user.OnlineUser;
 import net.william278.huskhomes.user.SavedUser;
@@ -46,6 +47,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.*;
@@ -78,7 +80,10 @@ public abstract class Database {
         name = (name.startsWith("database/") ? "" : "database/") + name + (name.endsWith(".sql") ? "" : ".sql");
         try (InputStream file = Objects.requireNonNull(plugin.getResource(name), "Invalid script %s".formatted(name))) {
             @Language("SQL") final String schema = new String(file.readAllBytes(), StandardCharsets.UTF_8);
-            return format(schema).split(";");
+            // Drivers reject the empty statement a trailing separator leaves behind
+            return Arrays.stream(format(schema).split(";"))
+                    .filter(statement -> !statement.isBlank())
+                    .toArray(String[]::new);
         } catch (IOException e) {
             plugin.log(Level.SEVERE, "Failed to load database schema", e);
         }
@@ -152,11 +157,16 @@ public abstract class Database {
         final int latestVersion = Migration.getLatestVersion();
         if (currentVersion < latestVersion) {
             plugin.log(Level.INFO, "Performing database migrations (Target version: v" + latestVersion + ")");
+            int appliedVersion = currentVersion;
             for (Migration migration : Migration.getOrderedMigrations()) {
                 if (!migration.isSupported(type)) {
                     continue;
                 }
                 if (migration.getVersion() > currentVersion) {
+                    if (isMigrationApplied(connection, migration)) {
+                        appliedVersion = migration.getVersion();
+                        continue;
+                    }
                     try {
                         plugin.log(Level.INFO, "Performing database migration: " + migration.getMigrationName()
                                                + " (v" + migration.getVersion() + ")");
@@ -165,15 +175,93 @@ public abstract class Database {
                                 type.name().toLowerCase(Locale.ENGLISH),
                                 migration.getMigrationName()
                         ));
+                        appliedVersion = migration.getVersion();
                     } catch (SQLException e) {
-                        plugin.log(Level.WARNING, "Migration " + migration.getMigrationName()
-                                                  + " (v" + migration.getVersion() + ") failed; skipping", e);
+                        if (isMigrationApplied(connection, migration)) {
+                            appliedVersion = migration.getVersion();
+                            continue;
+                        }
+                        if (appliedVersion >= 0) {
+                            setSchemaVersion(appliedVersion);
+                        }
+                        throw e;
                     }
                 }
             }
-            setSchemaVersion(latestVersion);
-            plugin.log(Level.INFO, "Completed database migration (Target version: v" + latestVersion + ")");
+            setSchemaVersion(appliedVersion);
+            plugin.log(Level.INFO, "Completed database migration (Target version: v" + appliedVersion + ")");
         }
+    }
+
+    private boolean isMigrationApplied(@NotNull Connection connection, @NotNull Migration migration)
+            throws SQLException {
+        final String table = plugin.getSettings().getDatabase().getTableName(Table.LAST_WORLD_DATA);
+        return switch (migration) {
+            case ADD_LAST_WORLD_UUID -> hasColumn(connection, table, "world_uuid");
+            case ADD_LAST_WORLD_INDEX -> hasIndex(connection, table, table + "_server_world");
+            case ADD_LAST_WORLD_USER_FK -> hasForeignKey(
+                    connection,
+                    table,
+                    "user_uuid",
+                    plugin.getSettings().getDatabase().getTableName(Table.PLAYER_DATA)
+            );
+            default -> false;
+        };
+    }
+
+    private boolean hasColumn(@NotNull Connection connection, @NotNull String table, @NotNull String column)
+            throws SQLException {
+        for (String candidate : identifierCandidates(table)) {
+            try (ResultSet result = connection.getMetaData().getColumns(
+                    connection.getCatalog(), null, candidate, null)) {
+                while (result.next()) {
+                    if (column.equalsIgnoreCase(result.getString("COLUMN_NAME"))) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean hasForeignKey(@NotNull Connection connection, @NotNull String table, @NotNull String column,
+                                  @NotNull String referencedTable) throws SQLException {
+        for (String candidate : identifierCandidates(table)) {
+            try (ResultSet result = connection.getMetaData().getImportedKeys(
+                    connection.getCatalog(), null, candidate)) {
+                while (result.next()) {
+                    if (column.equalsIgnoreCase(result.getString("FKCOLUMN_NAME"))
+                            && referencedTable.equalsIgnoreCase(result.getString("PKTABLE_NAME"))) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean hasIndex(@NotNull Connection connection, @NotNull String table, @NotNull String index)
+            throws SQLException {
+        for (String candidate : identifierCandidates(table)) {
+            try (ResultSet result = connection.getMetaData().getIndexInfo(
+                    connection.getCatalog(), null, candidate, false, false)) {
+                while (result.next()) {
+                    if (index.equalsIgnoreCase(result.getString("INDEX_NAME"))) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    @NotNull
+    private Set<String> identifierCandidates(@NotNull String identifier) {
+        return new LinkedHashSet<>(List.of(
+                identifier,
+                identifier.toUpperCase(Locale.ENGLISH),
+                identifier.toLowerCase(Locale.ENGLISH)
+        ));
     }
 
     /**
@@ -187,8 +275,9 @@ public abstract class Database {
      * Set the database schema version.
      *
      * @param version the database schema version
+     * @throws SQLException if the version could not be persisted
      */
-    public abstract void setSchemaVersion(int version);
+    public abstract void setSchemaVersion(int version) throws SQLException;
 
     /**
      * <b>(Internal use only)</b> - Sets a position to the position table in the database.
@@ -242,6 +331,16 @@ public abstract class Database {
      * @param user The {@link User} to ensure
      */
     public abstract void ensureUser(@NotNull User user);
+
+    // Skip the lookup ensureUser does when the join batch already read the row and nothing needs writing.
+    // Returns whether it wrote, in which case the batch's copy of the row is stale
+    public final boolean ensureUser(@NotNull User user, @NotNull JoinData joinData) {
+        if (joinData.getUser().filter(saved -> saved.getUsername().equals(user.getName())).isPresent()) {
+            return false;
+        }
+        ensureUser(user);
+        return true;
+    }
 
     /**
      * Get {@link SavedUser} for a user by their Minecraft username (<i>case-insensitive</i>).
@@ -426,6 +525,55 @@ public abstract class Database {
      */
     public abstract Optional<Teleport> getCurrentTeleport(@NotNull OnlineUser onlineUser);
 
+    // Read a pending cross-server teleport by UUID, for a user who isn't online yet
+    public abstract Optional<PendingTeleport> getPendingTeleport(@NotNull UUID uuid);
+
+    // Everything the join handler needs, over a single pooled connection instead of one checkout per read
+    @NotNull
+    public abstract JoinData getJoinData(@NotNull User user);
+
+    // A joining user's stored row, last worlds and homes. A null user has never been saved before
+    public record JoinData(@Nullable SavedUser user, @NotNull Map<String, World> lastWorlds,
+                           @NotNull List<Home> homes) {
+
+        @NotNull
+        public static JoinData empty() {
+            return new JoinData(null, Map.of(), List.of());
+        }
+
+        @NotNull
+        public Optional<SavedUser> getUser() {
+            return Optional.ofNullable(user);
+        }
+    }
+
+    // Read a pending teleport row; shared by every driver
+    @NotNull
+    protected final Optional<PendingTeleport> readPendingTeleport(@NotNull ResultSet resultSet) throws SQLException {
+        if (!resultSet.next()) {
+            return Optional.empty();
+        }
+        return Optional.of(new PendingTeleport(
+                Position.at(
+                        resultSet.getDouble("x"),
+                        resultSet.getDouble("y"),
+                        resultSet.getDouble("z"),
+                        resultSet.getFloat("yaw"),
+                        resultSet.getFloat("pitch"),
+                        World.from(
+                                resultSet.getString("world_name"),
+                                UUID.fromString(resultSet.getString("world_uuid"))
+                        ),
+                        resultSet.getString("server_name")
+                ),
+                Teleport.Type.getTeleportType(resultSet.getInt("type")).orElse(Teleport.Type.TELEPORT)
+        ));
+    }
+
+    // A stored cross-server teleport, before it is bound to an online user
+    public record PendingTeleport(@NotNull Position target, @NotNull Teleport.Type type) {
+    }
+
     /**
      * Updates a user in the database with new {@link SavedUser}.
      *
@@ -482,6 +630,41 @@ public abstract class Database {
      * @param position The {@link Position} to set as their offline position
      */
     public abstract void setOfflinePosition(@NotNull User user, @NotNull Position position);
+
+    // Get a user's last world on each server, by server ID
+    @NotNull
+    public abstract Map<String, World> getLastWorlds(@NotNull User user);
+
+    // Set a user's last world on a server, replacing any previous entry
+    public abstract void setLastWorld(@NotNull User user, @NotNull String server, @NotNull World world);
+
+    // Delete every entry for a deleted world on a server
+    public abstract void deleteLastWorlds(@NotNull String server, @NotNull UUID worldUuid);
+
+    // Delete a server's entries except those for the given worlds, returning the row count. Rows with no
+    // stored world UUID can't be validated, so they go too
+    public abstract int deleteLastWorldsExcept(@NotNull String server, @NotNull Collection<UUID> worldUuids);
+
+    // Build a `?` placeholder list for an SQL IN clause
+    @NotNull
+    protected final String getPlaceholders(int count) {
+        if (count < 1) {
+            throw new IllegalArgumentException("Placeholder count must be positive");
+        }
+        return String.join(", ", Collections.nCopies(count, "?"));
+    }
+
+    // Read a last world row. Rows predating world UUIDs get a nil UUID, which matches no world
+    @NotNull
+    protected final World readLastWorld(@NotNull ResultSet resultSet) throws SQLException {
+        final String worldUuid = resultSet.getString("world_uuid");
+        return World.from(
+                resultSet.getString("world_name"),
+                worldUuid == null ? new UUID(0, 0) : UUID.fromString(worldUuid),
+                null,
+                resultSet.getString("world_key")
+        );
+    }
 
     /**
      * Get the respawn {@link Position} of a specified {@link User}.
@@ -595,7 +778,8 @@ public abstract class Database {
         SAVED_POSITION_DATA("huskhomes_saved_positions"),
         HOME_DATA("huskhomes_homes"),
         WARP_DATA("huskhomes_warps"),
-        TELEPORT_DATA("huskhomes_teleports");
+        TELEPORT_DATA("huskhomes_teleports"),
+        LAST_WORLD_DATA("huskhomes_last_worlds");
 
         @NotNull
         private final String defaultName;
@@ -625,6 +809,22 @@ public abstract class Database {
     public enum Migration {
         ADD_METADATA_TABLE(
                 0, "add_metadata_table",
+                Type.MYSQL, Type.MARIADB, Type.POSTGRESQL, Type.SQLITE, Type.H2
+        ),
+        ADD_LAST_WORLDS_TABLE(
+                1, "add_last_worlds_table",
+                Type.MYSQL, Type.MARIADB, Type.POSTGRESQL, Type.SQLITE, Type.H2
+        ),
+        ADD_LAST_WORLD_UUID(
+                2, "add_last_world_uuid",
+                Type.MYSQL, Type.MARIADB, Type.POSTGRESQL, Type.SQLITE, Type.H2
+        ),
+        ADD_LAST_WORLD_INDEX(
+                3, "add_last_world_index",
+                Type.MYSQL, Type.MARIADB, Type.POSTGRESQL, Type.SQLITE, Type.H2
+        ),
+        ADD_LAST_WORLD_USER_FK(
+                4, "add_last_world_user_fk",
                 Type.MYSQL, Type.MARIADB, Type.POSTGRESQL, Type.SQLITE, Type.H2
         );
 
