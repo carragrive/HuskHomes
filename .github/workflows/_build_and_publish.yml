@@ -76,7 +76,7 @@ jobs:
           echo "type=$version_type" >> "$GITHUB_OUTPUT"
       - name: 'Publish to William278.net 🚀'
         uses: WiIIiam278/bones-publish-action@v1
-        if: ${{ !cancelled() && steps.version.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.version.outcome == 'success' && github.repository == 'WiIIiam278/HuskHomes' }}
         with:
           api-key: ${{ secrets.BONES_API_KEY }}
           project: 'huskhomes'
@@ -89,7 +89,7 @@ jobs:
           files: target/HuskHomesX-Paper-${{ steps.version.outputs.name }}.jar
       - name: 'Paper: Publish to Modrinth & Hangar 🚰'
         uses: WiIIiam278/mc-publish@hangar
-        if: ${{ !cancelled() && steps.version.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.version.outcome == 'success' && github.repository == 'WiIIiam278/HuskHomes' }}
         with:
           modrinth-id: J6U9o3JG
           modrinth-featured: false
