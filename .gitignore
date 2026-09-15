@@ -1,9 +1,30 @@
-.gradle
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# LLMs
+CLAUDE.md
+AGENTS.md
+.claude/
+.codex/
+
+# Secrets
+.env
+.env.*
+env/
+
+# Gradle
+.gradle/
 build/
 run/
-!gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
+
+# Compiled/packaged
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
 
 ### IntelliJ IDEA ###
 .idea/modules.xml
@@ -41,5 +62,9 @@ bin/
 ### VS Code ###
 .vscode/
 
-### Mac OS ###
-.DS_Store
+# JVM crash logs
+hs_err_pid*
+replay_pid*
+
+# Paper/Folia test server working directory
+test-infrastructure/
