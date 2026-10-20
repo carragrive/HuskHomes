@@ -19,6 +19,8 @@
 
 package net.william278.huskhomes.database;
 
+import com.google.gson.JsonParseException;
+
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -27,6 +29,7 @@ import net.william278.huskhomes.HuskHomes;
 import net.william278.huskhomes.config.Server;
 import net.william278.huskhomes.position.Home;
 import net.william278.huskhomes.position.Position;
+import net.william278.huskhomes.position.PositionMeta;
 import net.william278.huskhomes.position.SavedPosition;
 import net.william278.huskhomes.position.Warp;
 import net.william278.huskhomes.position.World;
@@ -68,6 +71,16 @@ public abstract class Database {
 
     protected Database(@NotNull HuskHomes plugin) {
         this.plugin = plugin;
+    }
+
+    protected final PositionMeta readPositionMeta(ResultSet row) throws SQLException {
+        try {
+            return PositionMeta.from(row.getString("name"), row.getString("description"),
+                    row.getTimestamp("timestamp").toInstant(), row.getString("tags"));
+        } catch (JsonParseException error) {
+            plugin.log(Level.SEVERE, "Invalid saved-position tags in the database; refusing to discard metadata", error);
+            throw new IllegalStateException("Cannot read saved-position metadata", error);
+        }
     }
 
     /**

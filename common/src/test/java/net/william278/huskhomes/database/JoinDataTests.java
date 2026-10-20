@@ -50,6 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Covers {@link Database#getJoinData(User)}, which reads a joining user's row, last worlds and homes over one
@@ -74,6 +75,45 @@ class JoinDataTests {
     @AfterEach
     void tearDown() {
         database.close();
+    }
+
+    @Test
+    void corruptTagsCannotBeReadOrOverwritten() throws Exception {
+        final String url = "jdbc:h2:" + configDirectory.resolve("HuskHomesData.h2").toAbsolutePath();
+        database.ensureUser(USER);
+        final Home home = home("corrupt");
+        database.saveHome(home);
+        try (var connection = java.sql.DriverManager.getConnection(url, "sa", "sa");
+             var statement = connection.createStatement()) {
+            statement.executeUpdate("UPDATE huskhomes_saved_positions SET tags = '{'");
+        }
+
+        assertThrows(IllegalStateException.class, () -> database.getHome(home.getUuid()));
+        assertThrows(IllegalStateException.class, () -> database.saveHome(home));
+
+        try (var connection = java.sql.DriverManager.getConnection(url, "sa", "sa");
+             var statement = connection.createStatement();
+             var rows = statement.executeQuery("SELECT tags FROM huskhomes_saved_positions")) {
+            assertTrue(rows.next());
+            assertEquals("{", rows.getString(1));
+        }
+    }
+
+    @Test
+    void serializationFailureDoesNotPartiallyMoveAHome() {
+        database.ensureUser(USER);
+        final Home home = home("unchanged");
+        database.saveHome(home);
+        home.setX(500);
+        home.getMeta().setTags(new java.util.AbstractMap<>() {
+            @Override
+            public java.util.Set<Entry<String, String>> entrySet() {
+                throw new IllegalStateException("Unreadable tags");
+            }
+        });
+
+        assertThrows(IllegalStateException.class, () -> database.saveHome(home));
+        assertEquals(0, database.getHome(home.getUuid()).orElseThrow().getX());
     }
 
     @Test

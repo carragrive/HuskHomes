@@ -19,8 +19,11 @@
 
 package net.william278.huskhomes.position;
 
-import com.google.common.reflect.TypeToken;
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParseException;
+import com.google.gson.Strictness;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -28,11 +31,14 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Represents metadata about a {@link Position}, used in {@link SavedPosition} implementations.
  */
 public class PositionMeta {
+
+    private static final Gson GSON = new GsonBuilder().setStrictness(Strictness.STRICT).serializeNulls().create();
 
     private String name;
     private String description;
@@ -75,16 +81,25 @@ public class PositionMeta {
      */
     @NotNull
     private static Map<String, String> deserializeTags(@Nullable String serializedTags) {
-        try {
-            if (serializedTags == null || serializedTags.isBlank()) {
-                return new HashMap<>();
-            }
-            return new Gson().fromJson(serializedTags, new TypeToken<Map<String, String>>() {
-            }.getType());
-        } catch (Exception e) {
-            e.printStackTrace();
+        final Map<String, String> tags = new HashMap<>();
+        if (serializedTags == null || serializedTags.isBlank()) {
+            return tags;
         }
-        return new HashMap<>();
+        final JsonElement json = GSON.fromJson(serializedTags, JsonElement.class);
+        if (json.isJsonNull()) {
+            return tags;
+        }
+        if (!json.isJsonObject()) {
+            throw new JsonParseException("Position tags must be a JSON object");
+        }
+        json.getAsJsonObject().entrySet().forEach(entry -> {
+            final JsonElement value = entry.getValue();
+            if (!value.isJsonNull() && (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString())) {
+                throw new JsonParseException("Position tag values must be strings or null");
+            }
+            tags.put(entry.getKey(), value.isJsonNull() ? null : value.getAsString());
+        });
+        return tags;
     }
 
     /**
@@ -94,15 +109,7 @@ public class PositionMeta {
      */
     @Nullable
     public String getSerializedTags() {
-        try {
-            if (getTags().isEmpty()) {
-                return null;
-            }
-            return new Gson().toJson(getTags());
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
+        return tags.isEmpty() ? null : GSON.toJson(tags);
     }
 
     /**
@@ -136,7 +143,7 @@ public class PositionMeta {
     }
 
     public void setTags(Map<String, String> tags) {
-        this.tags = tags;
+        this.tags = Objects.requireNonNull(tags, "Position tags cannot be null");
     }
 
     /**

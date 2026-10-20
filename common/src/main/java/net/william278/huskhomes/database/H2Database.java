@@ -233,6 +233,7 @@ public class H2Database extends Database {
     @Override
     protected int setSavedPosition(@NotNull SavedPosition position,
                                    @NotNull Connection connection) throws SQLException {
+        final String tags = position.getMeta().getSerializedTags();
         try (PreparedStatement statement = connection.prepareStatement(format("""
                         INSERT INTO `%saved_position_data%`
                             (`position_id`, `name`, `description`, `tags`, `timestamp`)
@@ -243,7 +244,7 @@ public class H2Database extends Database {
             statement.setInt(1, setPosition(position, connection));
             statement.setString(2, position.getName());
             statement.setString(3, position.getMeta().getDescription());
-            statement.setString(4, position.getMeta().getSerializedTags());
+            statement.setString(4, tags);
             statement.setTimestamp(5, Timestamp.from(position.getMeta().getCreationTime()));
             statement.executeUpdate();
 
@@ -258,6 +259,7 @@ public class H2Database extends Database {
     @Override
     protected void updateSavedPosition(int savedPositionId, @NotNull SavedPosition position,
                                        @NotNull Connection connection) throws SQLException {
+        final String tags = position.getMeta().getSerializedTags();
         try (PreparedStatement selectStatement = connection.prepareStatement(format("""
                 SELECT `position_id`
                 FROM `%saved_position_data%`
@@ -277,7 +279,7 @@ public class H2Database extends Database {
                         WHERE `id`=?;"""))) {
                     updateStatement.setString(1, position.getName());
                     updateStatement.setString(2, position.getMeta().getDescription());
-                    updateStatement.setString(3, position.getMeta().getSerializedTags());
+                    updateStatement.setString(3, tags);
                     updateStatement.setInt(4, savedPositionId);
                     updateStatement.executeUpdate();
                 }
@@ -510,10 +512,7 @@ public class H2Database extends Database {
                         World.from(resultSet.getString("world_name"),
                                 UUID.fromString(resultSet.getString("world_uuid"))),
                         resultSet.getString("server_name"),
-                        PositionMeta.from(resultSet.getString("name"),
-                                resultSet.getString("description"),
-                                resultSet.getTimestamp("timestamp").toInstant(),
-                                resultSet.getString("tags")),
+                        readPositionMeta(resultSet),
                         UUID.fromString(resultSet.getString("home_uuid")),
                         user,
                         resultSet.getBoolean("public")));
@@ -546,10 +545,7 @@ public class H2Database extends Database {
                             World.from(resultSet.getString("world_name"),
                                     UUID.fromString(resultSet.getString("world_uuid"))),
                             resultSet.getString("server_name"),
-                            PositionMeta.from(resultSet.getString("name"),
-                                    resultSet.getString("description"),
-                                    resultSet.getTimestamp("timestamp").toInstant(),
-                                    resultSet.getString("tags")),
+                            readPositionMeta(resultSet),
                             UUID.fromString(resultSet.getString("warp_uuid"))));
                 }
             }
@@ -586,10 +582,7 @@ public class H2Database extends Database {
                             World.from(resultSet.getString("world_name"),
                                     UUID.fromString(resultSet.getString("world_uuid"))),
                             resultSet.getString("server_name"),
-                            PositionMeta.from(resultSet.getString("name"),
-                                    resultSet.getString("description"),
-                                    resultSet.getTimestamp("timestamp").toInstant(),
-                                    resultSet.getString("tags")),
+                            readPositionMeta(resultSet),
                             UUID.fromString(resultSet.getString("home_uuid")),
                             User.of(UUID.fromString(resultSet.getString("owner_uuid")),
                                     resultSet.getString("owner_username")),
@@ -634,10 +627,7 @@ public class H2Database extends Database {
                             World.from(resultSet.getString("world_name"),
                                     UUID.fromString(resultSet.getString("world_uuid"))),
                             resultSet.getString("server_name"),
-                            PositionMeta.from(resultSet.getString("name"),
-                                    resultSet.getString("description"),
-                                    resultSet.getTimestamp("timestamp").toInstant(),
-                                    resultSet.getString("tags")),
+                            readPositionMeta(resultSet),
                             UUID.fromString(resultSet.getString("home_uuid")),
                             User.of(UUID.fromString(resultSet.getString("owner_uuid")),
                                     resultSet.getString("owner_username")),
@@ -681,10 +671,7 @@ public class H2Database extends Database {
                             World.from(resultSet.getString("world_name"),
                                     UUID.fromString(resultSet.getString("world_uuid"))),
                             resultSet.getString("server_name"),
-                            PositionMeta.from(resultSet.getString("name"),
-                                    resultSet.getString("description"),
-                                    resultSet.getTimestamp("timestamp").toInstant(),
-                                    resultSet.getString("tags")),
+                            readPositionMeta(resultSet),
                             UUID.fromString(resultSet.getString("home_uuid")),
                             user,
                             resultSet.getBoolean("public")));
@@ -723,10 +710,7 @@ public class H2Database extends Database {
                             World.from(resultSet.getString("world_name"),
                                     UUID.fromString(resultSet.getString("world_uuid"))),
                             resultSet.getString("server_name"),
-                            PositionMeta.from(resultSet.getString("name"),
-                                    resultSet.getString("description"),
-                                    resultSet.getTimestamp("timestamp").toInstant(),
-                                    resultSet.getString("tags")),
+                            readPositionMeta(resultSet),
                             UUID.fromString(resultSet.getString("home_uuid")),
                             User.of(UUID.fromString(resultSet.getString("owner_uuid")),
                                     resultSet.getString("owner_username")),
@@ -765,10 +749,7 @@ public class H2Database extends Database {
                             World.from(resultSet.getString("world_name"),
                                     UUID.fromString(resultSet.getString("world_uuid"))),
                             resultSet.getString("server_name"),
-                            PositionMeta.from(resultSet.getString("name"),
-                                    resultSet.getString("description"),
-                                    resultSet.getTimestamp("timestamp").toInstant(),
-                                    resultSet.getString("tags")),
+                            readPositionMeta(resultSet),
                             UUID.fromString(resultSet.getString("warp_uuid"))));
                 }
             }
@@ -802,10 +783,7 @@ public class H2Database extends Database {
                             World.from(resultSet.getString("world_name"),
                                     UUID.fromString(resultSet.getString("world_uuid"))),
                             resultSet.getString("server_name"),
-                            PositionMeta.from(resultSet.getString("name"),
-                                    resultSet.getString("description"),
-                                    resultSet.getTimestamp("timestamp").toInstant(),
-                                    resultSet.getString("tags")),
+                            readPositionMeta(resultSet),
                             UUID.fromString(resultSet.getString("warp_uuid"))));
                 }
             }
