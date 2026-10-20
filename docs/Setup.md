@@ -8,7 +8,7 @@ This will walk you through installing HuskHomes on your Paper server or proxy ne
 * (For optional [[Redis support]]) A Redis database (v5.0+)
 
 ## Download HuskHomes for your server
-Download the `HuskHomesX-Paper` jar from the [latest release page](https://github.com/WiIIiam278/HuskHomes/releases/latest).
+Download `HuskHomesX-<version>.jar` from the [latest release page](https://github.com/carragrive/HuskHomes/releases/latest).
 
 ## Single-server Setup Instructions
 These instructions are for installing HuskHomes on one Paper server.

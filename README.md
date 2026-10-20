@@ -1,3 +1,8 @@
+## About this fork
+
+HuskHomesX targets Paper and Folia servers, adds configurable random teleport destinations and conditions,
+and remembers each player's last world across servers. Building requires Java 25.
+
 <!--suppress ALL -->
 <p align="center">
     <img src="images/banner.png" alt="HuskHomesX" />

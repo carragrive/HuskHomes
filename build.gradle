@@ -5,9 +5,9 @@ plugins {
     id 'java'
 }
 
-group 'net.william278'
-version "$ext.plugin_version"
-description "$ext.plugin_description"
+group = 'net.william278'
+version = "$ext.plugin_version"
+description = "$ext.plugin_description"
 defaultTasks 'build'
 
 ext {
@@ -33,21 +33,22 @@ allprojects {
 
     repositories {
         mavenCentral()
-        maven { url 'https://jitpack.io' }
-        maven { url 'https://repo.william278.net/releases/' }
-        maven { url 'https://api.modrinth.com/maven' }
-        maven { url 'https://repo.papermc.io/repository/maven-public/' }
-        maven { url 'https://mvn-repo.arim.space/lesser-gpl3/' }
-        maven { url 'https://repo.extendedclip.com/content/repositories/placeholderapi/' }
-        maven { url 'https://repo.minebench.de/' }
-        maven { url 'https://repo.alessiodp.com/releases/' }
-        maven { url 'https://repo.essentialsx.net/releases/' }
-        maven { url 'https://repo.mikeprimm.com/' }
+        maven { url = 'https://jitpack.io' }
+        maven { url = 'https://repo.william278.net/releases/' }
+        maven { url = 'https://api.modrinth.com/maven' }
+        maven { url = 'https://repo.papermc.io/repository/maven-public/' }
+        maven { url = 'https://mvn-repo.arim.space/lesser-gpl3/' }
+        maven { url = 'https://repo.extendedclip.com/content/repositories/placeholderapi/' }
+        maven { url = 'https://repo.minebench.de/' }
+        maven { url = 'https://repo.alessiodp.com/releases/' }
+        maven { url = 'https://repo.essentialsx.net/releases/' }
+        maven { url = 'https://repo.mikeprimm.com/' }
     }
 
     dependencies {
         testImplementation(platform("org.junit:junit-bom:6.0.3"))
         testImplementation 'org.junit.jupiter:junit-jupiter'
+        testImplementation 'org.mockito:mockito-core:5.18.0'
         testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
         testCompileOnly 'org.jetbrains:annotations:26.1.0'
     }
@@ -65,7 +66,7 @@ allprojects {
 }
 
 subprojects {
-    version rootProject.version
+    version = rootProject.version
     base {
         archivesName = "$rootProject.name-${project.name.capitalize()}"
     }
@@ -78,11 +79,13 @@ subprojects {
         shadowJar {
             from(rootProject.file('LICENSE'))
             destinationDirectory.set(file("$rootDir/target"))
+            archiveBaseName.set(rootProject.name)
             archiveClassifier.set('')
         }
         jar.dependsOn shadowJar
     } else {
         shadowJar.enabled = false
+        configurations.shadowRuntimeElements.canBeConsumed = false
     }
 }
 
