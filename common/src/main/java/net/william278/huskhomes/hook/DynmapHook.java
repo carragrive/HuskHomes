@@ -47,6 +47,7 @@ public class DynmapHook extends MapHook {
     private MarkerSet publicHomesMarkers;
     @Nullable
     private MarkerSet warpsMarkers;
+    private DynmapCommonAPIListener apiListener;
 
     public DynmapHook(@NotNull HuskHomes plugin) {
         super(plugin);
@@ -54,7 +55,7 @@ public class DynmapHook extends MapHook {
 
     @Override
     public void load() {
-        DynmapCommonAPIListener.register(new DynmapCommonAPIListener() {
+        apiListener = new DynmapCommonAPIListener() {
             @Override
             public void apiEnabled(@NotNull DynmapCommonAPI dynmapCommonAPI) {
                 dynmapApi = dynmapCommonAPI;
@@ -73,7 +74,21 @@ public class DynmapHook extends MapHook {
 
                 populateMap();
             }
-        });
+        };
+        DynmapCommonAPIListener.register(apiListener);
+    }
+
+    @Override
+    public void unload() {
+        if (apiListener != null) {
+            DynmapCommonAPIListener.unregister(apiListener);
+            apiListener = null;
+        }
+        getPublicHomesMarkerSet().ifPresent(MarkerSet::deleteMarkerSet);
+        getWarpsMarkerSet().ifPresent(MarkerSet::deleteMarkerSet);
+        publicHomesMarkers = null;
+        warpsMarkers = null;
+        dynmapApi = null;
     }
 
     @Override

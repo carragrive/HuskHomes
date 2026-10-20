@@ -20,7 +20,7 @@
 package net.william278.huskhomes.hook;
 
 import net.milkbowl.vault.economy.Economy;
-import net.william278.huskhomes.BukkitHuskHomes;
+import net.william278.huskhomes.BukkitHuskHomesPlugin;
 import net.william278.huskhomes.HuskHomes;
 import net.william278.huskhomes.user.BukkitUser;
 import net.william278.huskhomes.user.OnlineUser;
@@ -45,7 +45,7 @@ public class VaultEconomyHook extends EconomyHook {
 
     @Override
     public void load() {
-        final RegisteredServiceProvider<Economy> economyProvider = ((BukkitHuskHomes) plugin).getServer()
+        final RegisteredServiceProvider<Economy> economyProvider = ((BukkitHuskHomesPlugin) plugin).getServer()
                 .getServicesManager().getRegistration(Economy.class);
         if (economyProvider != null) {
             economy = economyProvider.getProvider();

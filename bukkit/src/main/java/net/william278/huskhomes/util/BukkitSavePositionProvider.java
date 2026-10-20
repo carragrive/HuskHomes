@@ -19,7 +19,7 @@
 
 package net.william278.huskhomes.util;
 
-import net.william278.huskhomes.BukkitHuskHomes;
+import net.william278.huskhomes.BukkitHuskHomesPlugin;
 import net.william278.huskhomes.config.RtpOptions;
 import net.william278.huskhomes.position.Location;
 import net.william278.huskhomes.position.Position;
@@ -49,7 +49,7 @@ public interface BukkitSavePositionProvider extends SavePositionProvider {
     @Override
     default CompletableFuture<Optional<Location>> findSafeGroundLocation(@NotNull Location location,
                                                                           @NotNull RtpOptions options) {
-        final org.bukkit.Location bukkitLocation = BukkitHuskHomes.Adapter.adapt(location);
+        final org.bukkit.Location bukkitLocation = BukkitHuskHomesPlugin.Adapter.adapt(location);
         if (bukkitLocation == null || bukkitLocation.getWorld() == null) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
@@ -76,13 +76,13 @@ public interface BukkitSavePositionProvider extends SavePositionProvider {
     @Override
     default CompletableFuture<Boolean> prepareRtpDestination(@NotNull OnlineUser user, @NotNull Position position,
                                                               @NotNull RtpOptions options) {
-        final org.bukkit.Location location = BukkitHuskHomes.Adapter.adapt(position);
+        final org.bukkit.Location location = BukkitHuskHomesPlugin.Adapter.adapt(position);
         if (location == null || location.getWorld() == null || !(user instanceof BukkitUser bukkitUser)) {
             return CompletableFuture.completedFuture(false);
         }
 
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
-        final BukkitHuskHomes plugin = (BukkitHuskHomes) getPlugin();
+        final BukkitHuskHomesPlugin plugin = (BukkitHuskHomesPlugin) getPlugin();
         plugin.getScheduler().regionSpecificScheduler(location).run(() -> {
             try {
                 result.complete(prepareRtpDestination(bukkitUser, location, options));

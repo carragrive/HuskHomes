@@ -74,10 +74,11 @@ public class LuckPermsHook extends Hook {
     // Get basic contexts for a user
     @NotNull
     private static ImmutableContextSet getContexts(@NotNull OnlineUser user) {
-        final World world = user.getPosition().getWorld();
+        final net.william278.huskhomes.position.Position position = user.getPosition();
+        final World world = position.getWorld();
         return ImmutableContextSet.builder()
                 .add(DefaultContextKeys.WORLD_KEY, world.getName())
-                .add(DefaultContextKeys.SERVER_KEY, user.getPosition().getServer())
+                .add(DefaultContextKeys.SERVER_KEY, position.getServer())
                 .add(DefaultContextKeys.DIMENSION_TYPE_KEY, world.getEnvironment().name().toLowerCase(Locale.ENGLISH))
                 .build();
     }

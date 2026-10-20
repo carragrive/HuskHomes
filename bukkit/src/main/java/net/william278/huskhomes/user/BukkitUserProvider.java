@@ -19,7 +19,7 @@
 
 package net.william278.huskhomes.user;
 
-import net.william278.huskhomes.BukkitHuskHomes;
+import net.william278.huskhomes.BukkitHuskHomesPlugin;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -39,16 +39,12 @@ public interface BukkitUserProvider extends UserProvider {
         if (player == null) {
             throw new IllegalArgumentException("Player is not online");
         }
-        BukkitUser user = (BukkitUser) getOnlineUserMap().get(player.getUniqueId());
-        if (user == null || !user.getPlayer().isOnline()) {
-            user = BukkitUser.adapt(player, getPlugin());
-            getOnlineUserMap().put(player.getUniqueId(), user);
-            return user;
-        }
-        return user;
+        return (BukkitUser) getOnlineUserMap().compute(player.getUniqueId(), (uuid, current) ->
+                current instanceof BukkitUser user && user.getPlayer() == player
+                        ? user : BukkitUser.adapt(player, getPlugin()));
     }
 
     @NotNull
-    BukkitHuskHomes getPlugin();
+    BukkitHuskHomesPlugin getPlugin();
 
 }

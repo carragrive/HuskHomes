@@ -17,9 +17,9 @@
  *  limitations under the License.
  */
 
-package net.william278.huskhomes.listener;
+package net.william278.huskhomes.listeners;
 
-import net.william278.huskhomes.BukkitHuskHomes;
+import net.william278.huskhomes.BukkitHuskHomesPlugin;
 import net.william278.huskhomes.config.Settings;
 import net.william278.huskhomes.position.World;
 import org.bukkit.Bukkit;
@@ -50,7 +50,7 @@ public class BukkitEventListener extends EventListener implements Listener {
 
     protected boolean usePaperEvents = false;
 
-    public BukkitEventListener(@NotNull BukkitHuskHomes plugin) {
+    public BukkitEventListener(@NotNull BukkitHuskHomesPlugin plugin) {
         super(plugin);
     }
 
@@ -81,13 +81,16 @@ public class BukkitEventListener extends EventListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerChangedWorld(PlayerChangedWorldEvent event) {
-        final World world = BukkitHuskHomes.Adapter.adapt(event.getPlayer().getWorld());
+        final World world = BukkitHuskHomesPlugin.Adapter.adapt(event.getPlayer().getWorld());
         final var user = getPlugin().getOnlineUser(event.getPlayer());
-        final Map<String, World> session = getPlugin().getLastWorldCache().get(user.getUuid());
+        final Map<String, World> session = getPlugin().getLastWorldCache().computeIfPresent(user.getUuid(),
+                (uuid, cached) -> {
+                    cached.put(getPlugin().getServerName(), world);
+                    return cached;
+                });
         if (session == null) {
             return;
         }
-        session.put(getPlugin().getServerName(), world);
         getPlugin().runAsync(() -> getPlugin().persistLastWorld(user, session));
     }
 
@@ -101,7 +104,6 @@ public class BukkitEventListener extends EventListener implements Listener {
         if (usePaperEvents) {
             return;
         }
-        getPlugin().getOnlineUserMap().remove(event.getPlayer().getUniqueId());
         super.handlePlayerRespawn(getPlugin().getOnlineUser(event.getPlayer()));
     }
 
@@ -120,7 +122,7 @@ public class BukkitEventListener extends EventListener implements Listener {
 
         this.handlePlayerTeleport(
                 getPlugin().getOnlineUser(player),
-                BukkitHuskHomes.Adapter.adapt(event.getFrom(), getPlugin().getServerName())
+                BukkitHuskHomesPlugin.Adapter.adapt(event.getFrom(), getPlugin().getServerName())
         );
     }
 
@@ -155,14 +157,14 @@ public class BukkitEventListener extends EventListener implements Listener {
         // Update the player's respawn location
         this.handlePlayerUpdateSpawnPoint(
                 getPlugin().getOnlineUser(event.getPlayer()),
-                BukkitHuskHomes.Adapter.adapt(location, getPlugin().getServerName())
+                BukkitHuskHomesPlugin.Adapter.adapt(location, getPlugin().getServerName())
         );
     }
 
     // No delete event exists, but a deletion unloads first: still unloaded and folder gone means deleted
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onWorldUnload(WorldUnloadEvent event) {
-        final World world = BukkitHuskHomes.Adapter.adapt(event.getWorld());
+        final World world = BukkitHuskHomesPlugin.Adapter.adapt(event.getWorld());
         final File folder = event.getWorld().getWorldFolder();
         getPlugin().runSyncDelayed(() -> {
             if (Bukkit.getWorld(world.getUuid()) != null || folder.exists()) {
@@ -185,8 +187,8 @@ public class BukkitEventListener extends EventListener implements Listener {
 
     @Override
     @NotNull
-    protected BukkitHuskHomes getPlugin() {
-        return (BukkitHuskHomes) super.getPlugin();
+    protected BukkitHuskHomesPlugin getPlugin() {
+        return (BukkitHuskHomesPlugin) super.getPlugin();
     }
 
 

@@ -17,11 +17,11 @@
  *  limitations under the License.
  */
 
-package net.william278.huskhomes.listener;
+package net.william278.huskhomes.listeners;
 
 import com.destroystokyo.paper.event.player.PlayerSetSpawnEvent;
-import net.william278.huskhomes.BukkitHuskHomes;
-import net.william278.huskhomes.PaperHuskHomes;
+import net.william278.huskhomes.BukkitHuskHomesPlugin;
+import net.william278.huskhomes.HuskHomesPlugin;
 import net.william278.huskhomes.config.Settings;
 import org.bukkit.Location;
 import org.bukkit.event.EventHandler;
@@ -32,7 +32,7 @@ import org.jetbrains.annotations.NotNull;
 
 public class PaperEventListener extends BukkitEventListener implements Listener {
 
-    public PaperEventListener(@NotNull PaperHuskHomes plugin) {
+    public PaperEventListener(@NotNull HuskHomesPlugin plugin) {
         super(plugin);
         this.usePaperEvents = true;
     }
@@ -58,14 +58,13 @@ public class PaperEventListener extends BukkitEventListener implements Listener 
         // Update the player's respawn location
         this.handlePlayerUpdateSpawnPoint(
                 getPlugin().getOnlineUser(event.getPlayer()),
-                BukkitHuskHomes.Adapter.adapt(location, getPlugin().getServerName())
+                BukkitHuskHomesPlugin.Adapter.adapt(location, getPlugin().getServerName())
         );
     }
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     @Override
     public void onPlayerRespawn(PlayerRespawnEvent event) {
-        getPlugin().getOnlineUserMap().remove(event.getPlayer().getUniqueId());
         if (event.getRespawnReason() != PlayerRespawnEvent.RespawnReason.DEATH) {
             return;
         }
@@ -74,8 +73,8 @@ public class PaperEventListener extends BukkitEventListener implements Listener 
 
     @NotNull
     @Override
-    public PaperHuskHomes getPlugin() {
-        return (PaperHuskHomes) super.getPlugin();
+    public HuskHomesPlugin getPlugin() {
+        return (HuskHomesPlugin) super.getPlugin();
     }
 
 }

@@ -35,7 +35,7 @@ import net.william278.huskhomes.database.DatabaseProvider;
 import net.william278.huskhomes.event.EventDispatcher;
 import net.william278.huskhomes.hook.HookProvider;
 import net.william278.huskhomes.hook.PluginHook;
-import net.william278.huskhomes.listener.ListenerProvider;
+import net.william278.huskhomes.listeners.ListenerProvider;
 import net.william278.huskhomes.manager.ManagerProvider;
 import net.william278.huskhomes.network.Broker;
 import net.william278.huskhomes.network.BrokerProvider;
@@ -69,6 +69,8 @@ public interface HuskHomes extends Task.Supplier, EventDispatcher, SavePositionP
         ConfigProvider, DatabaseProvider, BrokerProvider, MetaProvider, HookProvider, RandomTeleportProvider,
         AudiencesProvider, UserProvider, TextValidator, ManagerProvider, ListenerProvider, CommandProvider,
         GsonProvider, DumpProvider {
+
+    boolean isEnabled();
 
     // Share of the connection pool pre-login lookups may occupy; the rest stays free for gameplay
     int INBOUND_PREFETCH_POOL_SHARE = 3;
@@ -167,8 +169,14 @@ public interface HuskHomes extends Task.Supplier, EventDispatcher, SavePositionP
         final Map<String, World> worlds = Maps.newConcurrentMap();
         worlds.putAll(stored);
 
-        worlds.putAll(session);
-        return getLastWorldCache().replace(user.getUuid(), session, worlds)
+        final Map<String, World> current = getLastWorldCache().computeIfPresent(user.getUuid(), (uuid, cached) -> {
+            if (cached != session) {
+                return cached;
+            }
+            worlds.putAll(session);
+            return worlds;
+        });
+        return current == worlds
                 ? Optional.of(worlds) : Optional.empty();
     }
 
@@ -331,11 +339,11 @@ public interface HuskHomes extends Task.Supplier, EventDispatcher, SavePositionP
      */
     default void shutdown() {
         log(Level.INFO, String.format("Disabling HuskHomesX v%s...", getPluginVersion()));
+        cancelTasks();
         try {
             unloadHooks(PluginHook.Register.values());
             closeBroker();
             closeDatabase();
-            cancelTasks();
             unloadAPI();
         } catch (Throwable e) {
             log(Level.SEVERE, "An error occurred whilst disabling HuskHomesX", e);

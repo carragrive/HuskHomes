@@ -24,7 +24,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import me.clip.placeholderapi.PlaceholderAPIPlugin;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
-import net.william278.huskhomes.BukkitHuskHomes;
+import net.william278.huskhomes.BukkitHuskHomesPlugin;
 import net.william278.huskhomes.network.Broker;
 import net.william278.huskhomes.user.OnlineUser;
 import net.william278.huskhomes.user.SavedUser;
@@ -41,16 +41,16 @@ import java.util.Locale;
 )
 public class PlaceholderAPIHook extends Hook {
 
-    public PlaceholderAPIHook(@NotNull BukkitHuskHomes plugin) {
+    public PlaceholderAPIHook(@NotNull BukkitHuskHomesPlugin plugin) {
         super(plugin);
     }
 
     @Override
     public void load() {
         new HuskHomesExpansion(
-                (BukkitHuskHomes) plugin,
+                (BukkitHuskHomesPlugin) plugin,
                 plugin.getPluginVersion().toStringWithoutMetadata(),
-                String.join(", ", ((BukkitHuskHomes) plugin).getPluginMeta().getAuthors())
+                String.join(", ", ((BukkitHuskHomesPlugin) plugin).getPluginMeta().getAuthors())
         ).register();
     }
 
@@ -70,7 +70,7 @@ public class PlaceholderAPIHook extends Hook {
 
         @NotNull
         @Getter(AccessLevel.NONE)
-        private final BukkitHuskHomes plugin;
+        private final BukkitHuskHomesPlugin plugin;
         private final String version;
         private final String author;
         private final String identifier = "huskhomes";

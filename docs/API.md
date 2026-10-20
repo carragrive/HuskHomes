@@ -3,6 +3,13 @@ The HuskHomes API provides methods for getting, editing and updating user homes 
 The API is distributed on Maven through [repo.william278.net](https://repo.william278.net/#/releases/net/william278/huskhomes/) and can be included in any Maven, Gradle, etc. project. JavaDocs are [available here](https://repo.william278.net/javadoc/releases/net/william278/huskhomes/latest).
 
 ## Compatibility
+
+In this fork, the entry point is `net.william278.huskhomes.HuskHomesPlugin`, the Bukkit base class is
+`BukkitHuskHomesPlugin`, and listener classes are in `net.william278.huskhomes.listeners`.
+Integrations referencing the previous implementation class names must be recompiled. The `HuskHomesAPI`
+entry point is unchanged. On Folia, synchronous player-state getters must run on that player's owning
+region; use `supplySync(..., user)` for reads from another region and handle cancellation on disconnect.
+
 [![Maven](https://repo.william278.net/api/badge/latest/releases/net/william278/huskhomes/huskhomes-common?color=00fb9a&name=Maven&prefix=v)](https://repo.william278.net/#/releases/net/william278/huskhomes/)
 
 The HuskHomes API shares version numbering with the plugin itself for consistency and convenience. Please note minor and patch plugin releases may make API additions and deprecations, but will not introduce breaking changes without notice.

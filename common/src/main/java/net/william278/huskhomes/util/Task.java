@@ -25,6 +25,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.logging.Level;
 
 public interface Task extends Runnable {
 
@@ -32,7 +33,8 @@ public interface Task extends Runnable {
 
         protected final HuskHomes plugin;
         protected final Runnable runnable;
-        protected boolean cancelled = false;
+        protected volatile boolean cancelled = false;
+        private final CompletableFuture<Void> completion = new CompletableFuture<>();
 
         protected Base(@NotNull HuskHomes plugin, @NotNull Runnable runnable) {
             this.plugin = plugin;
@@ -41,6 +43,28 @@ public interface Task extends Runnable {
 
         public void cancel() {
             cancelled = true;
+            completion.cancel(false);
+        }
+
+        public CompletableFuture<Void> getCompletion() {
+            return completion;
+        }
+
+        protected final void execute() {
+            if (cancelled || !plugin.isEnabled()) {
+                cancel();
+                return;
+            }
+            try {
+                runnable.run();
+                if (!(this instanceof Repeating)) {
+                    completion.complete(null);
+                }
+            } catch (Throwable error) {
+                completion.completeExceptionally(error);
+                cancel();
+                plugin.log(Level.SEVERE, "Failed to execute a scheduled task", error);
+            }
         }
 
         @NotNull
@@ -127,14 +151,41 @@ public interface Task extends Runnable {
         }
 
         default <T> CompletableFuture<T> supplyAsync(@NotNull java.util.function.Supplier<T> supplier) {
+            return supply(supplier, false, null);
+        }
+
+        default <T> CompletableFuture<T> supplySync(@NotNull java.util.function.Supplier<T> supplier,
+                                                   @Nullable OnlineUser user) {
+            return supply(supplier, true, user);
+        }
+
+        private <T> CompletableFuture<T> supply(@NotNull java.util.function.Supplier<T> supplier,
+                                               boolean sync, @Nullable OnlineUser user) {
             final CompletableFuture<T> future = new CompletableFuture<>();
-            runAsync(() -> {
+            final Runnable action = () -> {
                 try {
                     future.complete(supplier.get());
                 } catch (Throwable throwable) {
                     future.completeExceptionally(throwable);
                 }
+            };
+            final Base task = sync ? getSyncTask(action, user, 0) : getAsyncTask(action, 0);
+            task.getCompletion().whenComplete((ignored, error) -> {
+                if (error != null) {
+                    future.completeExceptionally(error);
+                }
             });
+            future.whenComplete((ignored, error) -> {
+                if (future.isCancelled()) {
+                    task.cancel();
+                }
+            });
+            try {
+                task.run();
+            } catch (RuntimeException error) {
+                task.cancel();
+                future.completeExceptionally(error);
+            }
             return future;
         }
 

@@ -41,8 +41,8 @@ import net.william278.huskhomes.database.Database;
 import net.william278.huskhomes.event.BukkitEventDispatcher;
 import net.william278.huskhomes.hook.BukkitHookProvider;
 import net.william278.huskhomes.hook.Hook;
-import net.william278.huskhomes.listener.BukkitEventListener;
-import net.william278.huskhomes.listener.EventListener;
+import net.william278.huskhomes.listeners.BukkitEventListener;
+import net.william278.huskhomes.listeners.EventListener;
 import net.william278.huskhomes.manager.Manager;
 import net.william278.huskhomes.network.Broker;
 import net.william278.huskhomes.network.PluginMessageBroker;
@@ -53,6 +53,7 @@ import net.william278.huskhomes.random.RandomTeleportEngine;
 import net.william278.huskhomes.user.*;
 import net.william278.huskhomes.util.BukkitSavePositionProvider;
 import net.william278.huskhomes.util.BukkitTask;
+import net.william278.huskhomes.util.TaskRegistry;
 import net.william278.huskhomes.util.UnsafeBlocks;
 import net.william278.toilet.BukkitToilet;
 import net.william278.toilet.Toilet;
@@ -75,7 +76,7 @@ import java.util.logging.Level;
 
 @Getter
 @NoArgsConstructor
-public class BukkitHuskHomes extends JavaPlugin implements HuskHomes, BukkitTask.Supplier, BukkitEventDispatcher,
+public class BukkitHuskHomesPlugin extends JavaPlugin implements HuskHomes, BukkitTask.Supplier, BukkitEventDispatcher,
         PluginMessageListener, BukkitHookProvider, BukkitSavePositionProvider, BukkitUserProvider {
 
     private AudienceProvider audiences;
@@ -84,10 +85,11 @@ public class BukkitHuskHomes extends JavaPlugin implements HuskHomes, BukkitTask
     private MorePaperLib morePaperLib;
     private Toilet toilet;
 
-    private final Set<SavedUser> savedUsers = Sets.newHashSet();
+    private final TaskRegistry tasks = new TaskRegistry();
+    private final Set<SavedUser> savedUsers = Sets.newConcurrentHashSet();
     private final Set<UUID> currentlyOnWarmup = Sets.newConcurrentHashSet();
     private final Set<UUID> warmupDamagedUsers = Sets.newConcurrentHashSet();
-    private final Map<UUID, OnlineUser> onlineUserMap = Maps.newHashMap();
+    private final Map<UUID, OnlineUser> onlineUserMap = Maps.newConcurrentMap();
     private final Map<String, List<User>> globalUserList = Maps.newConcurrentMap();
     private final Map<String, RtpOptions> pendingRtpOptions = Maps.newConcurrentMap();
     private final Map<UUID, Map<String, World>> lastWorldCache = Maps.newConcurrentMap();
@@ -145,6 +147,14 @@ public class BukkitHuskHomes extends JavaPlugin implements HuskHomes, BukkitTask
     @Override
     public void onDisable() {
         this.shutdown();
+        savedUsers.clear();
+        onlineUserMap.clear();
+        lastWorldCache.clear();
+        pendingInboundTeleports.clear();
+        pendingRtpOptions.clear();
+        currentlyOnWarmup.clear();
+        warmupDamagedUsers.clear();
+        globalUserList.clear();
         if (this.audiences != null) {
             this.audiences.close();
         }
@@ -300,7 +310,7 @@ public class BukkitHuskHomes extends JavaPlugin implements HuskHomes, BukkitTask
 
     @Override
     @NotNull
-    public BukkitHuskHomes getPlugin() {
+    public BukkitHuskHomesPlugin getPlugin() {
         return this;
     }
 

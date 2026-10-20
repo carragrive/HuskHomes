@@ -22,7 +22,7 @@ package net.william278.huskhomes.importer;
 import com.earth2me.essentials.Essentials;
 import com.earth2me.essentials.Warps;
 import com.earth2me.essentials.commands.WarpNotFoundException;
-import net.william278.huskhomes.BukkitHuskHomes;
+import net.william278.huskhomes.BukkitHuskHomesPlugin;
 import net.william278.huskhomes.HuskHomes;
 import net.william278.huskhomes.hook.PluginHook;
 import net.william278.huskhomes.user.User;
@@ -44,7 +44,7 @@ public class EssentialsXImporter extends Importer {
 
     public EssentialsXImporter(@NotNull HuskHomes plugin) {
         super(List.of(ImportData.HOMES, ImportData.WARPS), plugin);
-        this.essentials = (Essentials) ((BukkitHuskHomes) plugin).getServer()
+        this.essentials = (Essentials) ((BukkitHuskHomesPlugin) plugin).getServer()
                 .getPluginManager().getPlugin("Essentials");
     }
 
@@ -67,7 +67,7 @@ public class EssentialsXImporter extends Importer {
                 plugin.getManager().homes().createHome(
                         user,
                         this.normalizeName(homeName),
-                        BukkitHuskHomes.Adapter.adapt(essentialsUser.getHome(homeName), plugin.getServerName()),
+                        BukkitHuskHomesPlugin.Adapter.adapt(essentialsUser.getHome(homeName), plugin.getServerName()),
                         true,
                         false,
                         true,
@@ -89,7 +89,7 @@ public class EssentialsXImporter extends Importer {
                 }
                 plugin.getManager().warps().createWarp(
                         this.normalizeName(warpName),
-                        BukkitHuskHomes.Adapter.adapt(warps.getWarp(warpName), plugin.getServerName()),
+                        BukkitHuskHomesPlugin.Adapter.adapt(warps.getWarp(warpName), plugin.getServerName()),
                         true
                 );
             } catch (WarpNotFoundException e) {

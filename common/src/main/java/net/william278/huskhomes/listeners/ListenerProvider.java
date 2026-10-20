@@ -17,7 +17,7 @@
  *  limitations under the License.
  */
 
-package net.william278.huskhomes.listener;
+package net.william278.huskhomes.listeners;
 
 import org.jetbrains.annotations.NotNull;
 

@@ -19,7 +19,7 @@
 
 package net.william278.huskhomes.api;
 
-import net.william278.huskhomes.BukkitHuskHomes;
+import net.william278.huskhomes.BukkitHuskHomesPlugin;
 import net.william278.huskhomes.config.Server;
 import net.william278.huskhomes.position.Location;
 import net.william278.huskhomes.position.Position;
@@ -48,7 +48,7 @@ public class HuskHomesAPI extends BaseHuskHomesAPI {
      * <b>(Internal use only)</b> - Constructor, instantiating the API.
      */
     @ApiStatus.Internal
-    private HuskHomesAPI(@NotNull BukkitHuskHomes plugin) {
+    private HuskHomesAPI(@NotNull BukkitHuskHomesPlugin plugin) {
         super(plugin);
     }
 
@@ -69,7 +69,7 @@ public class HuskHomesAPI extends BaseHuskHomesAPI {
      * @param plugin the plugin instance
      */
     @ApiStatus.Internal
-    public static void register(@NotNull BukkitHuskHomes plugin) {
+    public static void register(@NotNull BukkitHuskHomesPlugin plugin) {
         instance = new HuskHomesAPI(plugin);
     }
 
@@ -82,7 +82,7 @@ public class HuskHomesAPI extends BaseHuskHomesAPI {
      */
     @NotNull
     public OnlineUser adaptUser(@NotNull Player player) {
-        return ((BukkitHuskHomes) plugin).getOnlineUser(player);
+        return ((BukkitHuskHomesPlugin) plugin).getOnlineUser(player);
     }
 
     /**
@@ -106,7 +106,7 @@ public class HuskHomesAPI extends BaseHuskHomesAPI {
      */
     @Nullable
     public org.bukkit.Location getLocation(@NotNull Position position) {
-        return BukkitHuskHomes.Adapter.adapt(position);
+        return BukkitHuskHomesPlugin.Adapter.adapt(position);
     }
 
     /**
@@ -118,7 +118,7 @@ public class HuskHomesAPI extends BaseHuskHomesAPI {
      */
     @Nullable
     public Location adaptLocation(@NotNull org.bukkit.Location location) {
-        return BukkitHuskHomes.Adapter.adapt(location);
+        return BukkitHuskHomesPlugin.Adapter.adapt(location);
     }
 
     /**

@@ -38,7 +38,7 @@ import java.util.stream.Stream;
 
 @NoArgsConstructor
 @SuppressWarnings("UnstableApiUsage")
-public class PaperHuskHomesLoader implements PluginLoader {
+public class HuskHomesPluginLoader implements PluginLoader {
 
     @Override
     public void classloader(@NotNull PluginClasspathBuilder classpathBuilder) {
@@ -76,7 +76,7 @@ public class PaperHuskHomesLoader implements PluginLoader {
 
     @Nullable
     private static InputStream getLibraryListFile() {
-        return PaperHuskHomesLoader.class.getClassLoader().getResourceAsStream("paper-libraries.yml");
+        return HuskHomesPluginLoader.class.getClassLoader().getResourceAsStream("paper-libraries.yml");
     }
 
     @Configuration

@@ -20,12 +20,13 @@
 package net.william278.huskhomes.user;
 
 import me.clip.placeholderapi.PlaceholderAPI;
-import net.william278.huskhomes.BukkitHuskHomes;
+import net.william278.huskhomes.BukkitHuskHomesPlugin;
 import net.william278.huskhomes.network.PluginMessageBroker;
 import net.william278.huskhomes.position.Location;
 import net.william278.huskhomes.position.Position;
 import net.william278.huskhomes.teleport.TeleportationException;
 import net.william278.huskhomes.util.BukkitPaperCompat;
+import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerTeleportEvent;
@@ -38,6 +39,10 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -46,17 +51,17 @@ import java.util.stream.Collectors;
 public class BukkitUser extends OnlineUser {
 
     private static final String VANISHED_META_KEY = "vanished";
-    private final NamespacedKey INVULNERABLE_KEY = new NamespacedKey((BukkitHuskHomes) plugin, "invulnerable");
+    private final NamespacedKey INVULNERABLE_KEY = new NamespacedKey((BukkitHuskHomesPlugin) plugin, "invulnerable");
     private final Player bukkitPlayer;
 
-    private BukkitUser(@NotNull Player bukkitPlayer, @NotNull BukkitHuskHomes plugin) {
+    private BukkitUser(@NotNull Player bukkitPlayer, @NotNull BukkitHuskHomesPlugin plugin) {
         super(bukkitPlayer.getUniqueId(), bukkitPlayer.getName(), plugin);
         this.bukkitPlayer = bukkitPlayer;
     }
 
     @NotNull
     @ApiStatus.Internal
-    public static BukkitUser adapt(@NotNull Player player, @NotNull BukkitHuskHomes plugin) {
+    public static BukkitUser adapt(@NotNull Player player, @NotNull BukkitHuskHomesPlugin plugin) {
         return new BukkitUser(player, plugin);
     }
 
@@ -67,18 +72,18 @@ public class BukkitUser extends OnlineUser {
 
     @Override
     public Position getPosition() {
-        return BukkitHuskHomes.Adapter.adapt(bukkitPlayer.getLocation(), plugin.getServerName());
+        return readOnOwner(() -> BukkitHuskHomesPlugin.Adapter.adapt(bukkitPlayer.getLocation(), plugin.getServerName()));
     }
 
     @Override
     public Optional<Position> getBedSpawnPosition() {
-        return Optional.ofNullable(bukkitPlayer.getBedSpawnLocation())
-                .map(loc -> BukkitHuskHomes.Adapter.adapt(loc, plugin.getServerName()));
+        return readOnOwner(() -> Optional.ofNullable(bukkitPlayer.getBedSpawnLocation())
+                .map(loc -> BukkitHuskHomesPlugin.Adapter.adapt(loc, plugin.getServerName())));
     }
 
     @Override
     public double getHealth() {
-        return bukkitPlayer.getHealth();
+        return readOnOwner(bukkitPlayer::getHealth);
     }
 
     @Override
@@ -107,27 +112,22 @@ public class BukkitUser extends OnlineUser {
         if (!plugin.isDependencyAvailable("PlaceholderAPI")) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        final CompletableFuture<Optional<String>> result = new CompletableFuture<>();
-        plugin.runSync(() -> result.complete(Optional.ofNullable(PlaceholderAPI.setPlaceholders(bukkitPlayer, input))),
-                this);
-        return result;
+        return plugin.supplySync(() -> Optional.ofNullable(PlaceholderAPI.setPlaceholders(bukkitPlayer, input)), this);
     }
 
     @Override
     public CompletableFuture<Void> dismount() {
-        final CompletableFuture<Void> future = new CompletableFuture<>();
-        plugin.runSync(() -> {
+        return plugin.supplySync(() -> {
             bukkitPlayer.leaveVehicle();
             bukkitPlayer.eject();
-            future.complete(null);
+            return null;
         }, this);
-        return future;
     }
 
     @Override
     public void teleportLocally(@NotNull Location target, boolean async) throws TeleportationException {
         // Ensure the location is valid (world exists, coordinates are within the world border)
-        final org.bukkit.Location location = BukkitHuskHomes.Adapter.adapt(target);
+        final org.bukkit.Location location = BukkitHuskHomesPlugin.Adapter.adapt(target);
         if (location.getWorld() == null) {
             throw new TeleportationException(TeleportationException.Type.WORLD_NOT_FOUND, plugin);
         }
@@ -139,7 +139,7 @@ public class BukkitUser extends OnlineUser {
             bukkitPlayer.leaveVehicle();
             bukkitPlayer.eject();
             bukkitPlayer.setFallDistance(0f);
-            if (async || ((BukkitHuskHomes) plugin).getScheduler().isUsingFolia()) {
+            if (async || ((BukkitHuskHomesPlugin) plugin).getScheduler().isUsingFolia()) {
                 BukkitPaperCompat.teleportAsync(bukkitPlayer, location);
                 return;
             }
@@ -149,12 +149,13 @@ public class BukkitUser extends OnlineUser {
 
     @Override
     public boolean isMoving() {
-        return bukkitPlayer.getVelocity().length() >= 0.1;
+        return readOnOwner(() -> bukkitPlayer.getVelocity().lengthSquared() >= 0.01);
     }
 
     @Override
     public void sendPluginMessage(byte[] message) {
-        bukkitPlayer.sendPluginMessage((BukkitHuskHomes) plugin, PluginMessageBroker.BUNGEE_CHANNEL_ID, message);
+        plugin.runSync(() -> bukkitPlayer.sendPluginMessage((BukkitHuskHomesPlugin) plugin,
+                PluginMessageBroker.BUNGEE_CHANNEL_ID, message), this);
     }
 
     @Override
@@ -165,12 +166,16 @@ public class BukkitUser extends OnlineUser {
 
     @Override
     public boolean hasInvulnerability() {
-        return markedAsInvulnerable || bukkitPlayer.getPersistentDataContainer()
-                .has(INVULNERABLE_KEY, PersistentDataType.INTEGER);
+        return readOnOwner(() -> markedAsInvulnerable || bukkitPlayer.getPersistentDataContainer()
+                .has(INVULNERABLE_KEY, PersistentDataType.INTEGER));
     }
 
     @Override
     public void handleInvulnerability() {
+        if (!Bukkit.isOwnedByCurrentRegion(bukkitPlayer)) {
+            plugin.runSync(this::handleInvulnerability, this);
+            return;
+        }
         final long invulnerableTicks = 20L * plugin.getSettings().getGeneral().getTeleportInvulnerabilityTime();
         if (invulnerableTicks <= 0) {
             return;
@@ -183,6 +188,10 @@ public class BukkitUser extends OnlineUser {
 
     @Override
     public void removeInvulnerabilityIfPermitted() {
+        if (!Bukkit.isOwnedByCurrentRegion(bukkitPlayer)) {
+            plugin.runSync(this::removeInvulnerabilityIfPermitted, this);
+            return;
+        }
         if (this.hasInvulnerability()) {
             bukkitPlayer.setInvulnerable(false);
         }
@@ -197,6 +206,28 @@ public class BukkitUser extends OnlineUser {
      */
     @Override
     public boolean isValid() {
-        return getHealth() > 0;
+        return plugin.isEnabled() && plugin.getOnlineUserMap().get(getUuid()) == this && getHealth() > 0;
+    }
+
+    private <T> T readOnOwner(Supplier<T> read) {
+        if (Bukkit.isOwnedByCurrentRegion(bukkitPlayer)) {
+            return read.get();
+        }
+        if (Bukkit.isPrimaryThread()) {
+            throw new IllegalStateException("Player state must be read on the player's owning region");
+        }
+        final CompletableFuture<T> result = plugin.supplySync(read, this);
+        try {
+            return result.get(5, TimeUnit.SECONDS);
+        } catch (InterruptedException error) {
+            result.cancel(false);
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while reading player state", error);
+        } catch (TimeoutException error) {
+            result.cancel(false);
+            throw new IllegalStateException("Timed out waiting for the player's owning region", error);
+        } catch (ExecutionException error) {
+            throw new IllegalStateException("Could not read player state", error.getCause());
+        }
     }
 }

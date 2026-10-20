@@ -17,7 +17,7 @@
  *  limitations under the License.
  */
 
-package net.william278.huskhomes.listener;
+package net.william278.huskhomes.listeners;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -62,6 +62,8 @@ public abstract class EventListener {
      * @param onlineUser the joining {@link OnlineUser}
      */
     protected final void handlePlayerJoin(@NotNull OnlineUser onlineUser) {
+        plugin.getCurrentlyOnWarmup().remove(onlineUser.getUuid());
+        plugin.getWarmupDamagedUsers().remove(onlineUser.getUuid());
         final Map<String, World> lastWorldSession = plugin.beginLastWorldCache(onlineUser);
         final World currentWorld = onlineUser.getPosition().getWorld();
         lastWorldSession.put(plugin.getServerName(), currentWorld);
@@ -74,6 +76,9 @@ public abstract class EventListener {
                 || handleInboundTeleport(onlineUser, prefetched.get()));
 
         plugin.runAsync(() -> {
+            if (plugin.getOnlineUserMap().get(onlineUser.getUuid()) != onlineUser) {
+                return;
+            }
             if (!handledInbound && plugin.getSettings().getCrossServer().isEnabled()) {
                 this.handleInboundTeleport(onlineUser);
             }
@@ -85,7 +90,6 @@ public abstract class EventListener {
             final Optional<SavedUser> savedUser = plugin.getDatabase().ensureUser(onlineUser, joinData)
                     ? plugin.getDatabase().getUser(onlineUser.getUuid())
                     : joinData.getUser();
-            plugin.getCurrentlyOnWarmup().remove(onlineUser.getUuid());
 
             // Cache last worlds per server, and record this one
             final Optional<Map<String, World>> cachedWorlds = plugin.cacheLastWorlds(
@@ -113,20 +117,22 @@ public abstract class EventListener {
                 }
             }
 
-            // Cache this user's homes
-            plugin.getManager().homes().cacheUserHomes(onlineUser, joinData.homes());
-
-            // Set their ignoring requests state
-            savedUser.ifPresent(userData -> {
-                plugin.getSavedUsers().add(userData);
-
-                // Send a reminder message if they are still ignoring requests
-                if (userData.isIgnoringTeleports()) {
-                    plugin.getLocales().getRawLocale("tpignore_on_notification", plugin.getLocales()
-                            .getRawLocale("tpignore_toggle_button")
-                            .orElse("")).ifPresent(locale -> onlineUser.sendMessage(plugin.getLocales().format(locale)));
+            plugin.runSync(() -> plugin.getOnlineUserMap().computeIfPresent(onlineUser.getUuid(), (uuid, current) -> {
+                if (current != onlineUser) {
+                    return current;
                 }
-            });
+                plugin.getManager().homes().cacheUserHomes(onlineUser, joinData.homes());
+                plugin.getSavedUsers().removeIf(user -> user.getUserUuid().equals(uuid));
+                savedUser.ifPresent(userData -> {
+                    plugin.getSavedUsers().add(userData);
+                    if (userData.isIgnoringTeleports()) {
+                        plugin.getLocales().getRawLocale("tpignore_on_notification", plugin.getLocales()
+                                .getRawLocale("tpignore_toggle_button").orElse(""))
+                                .ifPresent(locale -> onlineUser.sendMessage(plugin.getLocales().format(locale)));
+                    }
+                });
+                return current;
+            }), onlineUser);
         });
     }
 
@@ -137,17 +143,23 @@ public abstract class EventListener {
      */
     protected final void handlePlayerLeave(@NotNull OnlineUser online) {
         final Position offlinePosition = online.getPosition();
-        plugin.getOnlineUserMap().remove(online.getUuid());
-        plugin.getLastWorldCache().remove(online.getUuid());
         online.removeInvulnerabilityIfPermitted();
+        plugin.getOnlineUserMap().computeIfPresent(online.getUuid(), (uuid, current) -> {
+            if (current != online) {
+                return current;
+            }
+            plugin.getLastWorldCache().remove(uuid);
+            plugin.getSavedUsers().removeIf(user -> user.getUserUuid().equals(uuid));
+            plugin.getManager().homes().removeUserHomes(online);
+            plugin.getCurrentlyOnWarmup().remove(uuid);
+            plugin.getWarmupDamagedUsers().remove(uuid);
+            return null;
+        });
 
         plugin.runAsync(() -> {
             // Set offline position and the last world on this server
             plugin.getDatabase().setOfflinePosition(online, offlinePosition);
             plugin.getDatabase().setLastWorld(online, plugin.getServerName(), offlinePosition.getWorld());
-
-            // Remove this user's home cache
-            plugin.getManager().homes().removeUserHomes(online);
 
             // Update global lists
             if (plugin.getSettings().getCrossServer().isEnabled()) {

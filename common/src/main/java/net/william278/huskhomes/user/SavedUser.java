@@ -38,9 +38,9 @@ public class SavedUser {
 
     private final User user;
     @Setter
-    private int homeSlots;
+    private volatile int homeSlots;
     @Setter
-    private boolean ignoringTeleports;
+    private volatile boolean ignoringTeleports;
 
     /**
      * Create a new SavedUser object.

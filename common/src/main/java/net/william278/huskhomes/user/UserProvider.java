@@ -61,11 +61,11 @@ public interface UserProvider {
     }
 
     default void setUserList(@NotNull String server, @NotNull List<User> players) {
-        getGlobalUserList().values().forEach(list -> {
-            list.removeAll(players);
-            list.removeAll(getOnlineUsers());
-        });
-        getGlobalUserList().put(server, players);
+        final Set<UUID> local = Set.copyOf(getOnlineUserMap().keySet());
+        final Set<UUID> incoming = players.stream().map(User::getUuid).collect(java.util.stream.Collectors.toSet());
+        getGlobalUserList().replaceAll((name, list) -> list.stream()
+                .filter(user -> !local.contains(user.getUuid()) && !incoming.contains(user.getUuid())).toList());
+        getGlobalUserList().put(server, List.copyOf(players));
     }
 
     default boolean isUserOnlineGlobally(@NotNull String playerName) {
@@ -96,8 +96,10 @@ public interface UserProvider {
     default void editSavedUser(@NotNull User user, @NotNull Consumer<SavedUser> editor) {
         getPlugin().runAsync(() -> getSavedUser(user)
                 .ifPresent(result -> {
-                    editor.accept(result);
-                    getPlugin().getDatabase().updateUserData(result);
+                    synchronized (result) {
+                        editor.accept(result);
+                        getPlugin().getDatabase().updateUserData(result);
+                    }
                 }));
     }
 

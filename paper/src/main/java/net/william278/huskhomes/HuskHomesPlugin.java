@@ -20,14 +20,14 @@
 package net.william278.huskhomes;
 
 import net.kyori.adventure.audience.Audience;
-import net.william278.huskhomes.listener.PaperEventListener;
+import net.william278.huskhomes.listeners.PaperEventListener;
 import net.william278.huskhomes.user.ConsoleUser;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.UUID;
 
-public class PaperHuskHomes extends BukkitHuskHomes {
+public class HuskHomesPlugin extends BukkitHuskHomesPlugin {
 
     @Override
     @NotNull

@@ -19,7 +19,7 @@
 
 package net.william278.huskhomes.command;
 
-import net.william278.huskhomes.BukkitHuskHomes;
+import net.william278.huskhomes.BukkitHuskHomesPlugin;
 import net.william278.huskhomes.user.CommandUser;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -33,10 +33,10 @@ import java.util.*;
 
 public class BukkitCommand extends org.bukkit.command.Command {
 
-    private final BukkitHuskHomes plugin;
+    private final BukkitHuskHomesPlugin plugin;
     private final Command command;
 
-    public BukkitCommand(@NotNull Command command, @NotNull BukkitHuskHomes plugin) {
+    public BukkitCommand(@NotNull Command command, @NotNull BukkitHuskHomesPlugin plugin) {
         super(command.getName(), command.getDescription(), command.getUsage(), command.getAliases());
         this.setPermission(command.getPermission());
 
@@ -96,7 +96,7 @@ public class BukkitCommand extends org.bukkit.command.Command {
     }
 
     @Nullable
-    protected static Permission addPermission(@NotNull BukkitHuskHomes plugin, @NotNull String node,
+    protected static Permission addPermission(@NotNull BukkitHuskHomesPlugin plugin, @NotNull String node,
                                               @NotNull String description, @NotNull PermissionDefault permissionDefault,
                                               @NotNull Permission... children) {
         final Map<String, Boolean> childNodes = Arrays.stream(children)

@@ -135,8 +135,13 @@ public class TimedTeleport extends Teleport implements Runnable, Completable {
 
     private void finishWarmup() {
         task.cancel();
-        plugin.getCurrentlyOnWarmup().remove(teleporter.getUuid());
-        plugin.getWarmupDamagedUsers().remove(teleporter.getUuid());
+        plugin.getOnlineUserMap().computeIfPresent(teleporter.getUuid(), (uuid, current) -> {
+            if (current == teleporter) {
+                plugin.getCurrentlyOnWarmup().remove(uuid);
+                plugin.getWarmupDamagedUsers().remove(uuid);
+            }
+            return current;
+        });
     }
 
     /**
@@ -153,6 +158,9 @@ public class TimedTeleport extends Teleport implements Runnable, Completable {
      * @return {@code true} if the warmup was cancelled, {@code false} otherwise
      */
     private boolean shouldCancelWarmup() {
+        if (!plugin.isEnabled() || plugin.getOnlineUserMap().get(teleporter.getUuid()) != teleporter) {
+            return true;
+        }
         // Cancel the timed teleport if the player takes damage
         if (plugin.getSettings().getGeneral().isTeleportWarmupCancelOnDamage()
                 && plugin.hasTakenWarmupDamage(teleporter.getUuid())) {
@@ -189,9 +197,10 @@ public class TimedTeleport extends Teleport implements Runnable, Completable {
 
     private boolean hasTeleporterMoved() {
         final double maxMovementDistance = 0.1d;
-        double movementDistance = Math.abs(startLocation.getX() - teleporter.getPosition().getX())
-                + Math.abs(startLocation.getY() - teleporter.getPosition().getY())
-                + Math.abs(startLocation.getZ() - teleporter.getPosition().getZ());
+        final Position current = teleporter.getPosition();
+        double movementDistance = Math.abs(startLocation.getX() - current.getX())
+                + Math.abs(startLocation.getY() - current.getY())
+                + Math.abs(startLocation.getZ() - current.getZ());
         return movementDistance > maxMovementDistance;
     }
 

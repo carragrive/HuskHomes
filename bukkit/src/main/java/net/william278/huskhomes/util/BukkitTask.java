@@ -19,7 +19,7 @@
 
 package net.william278.huskhomes.util;
 
-import net.william278.huskhomes.BukkitHuskHomes;
+import net.william278.huskhomes.BukkitHuskHomesPlugin;
 import net.william278.huskhomes.HuskHomes;
 import net.william278.huskhomes.user.OnlineUser;
 import org.jetbrains.annotations.NotNull;
@@ -46,7 +46,7 @@ public interface BukkitTask extends Task {
         }
 
         @Override
-        public void cancel() {
+        public synchronized void cancel() {
             if (task != null && !cancelled) {
                 task.cancel();
             }
@@ -54,33 +54,41 @@ public interface BukkitTask extends Task {
         }
 
         @Override
-        public void run() {
-            if (isPluginDisabled()) {
-                runnable.run();
-                return;
-            }
+        public synchronized void run() {
             if (cancelled) {
                 return;
             }
+            ((BukkitHuskHomesPlugin) getPlugin()).getTasks().register(this);
 
             // Use entity-specific scheduler if user is not null
             if (user != null) {
-                final AttachedScheduler scheduler = ((BukkitHuskHomes) getPlugin()).getUserSyncScheduler(user);
+                final AttachedScheduler scheduler = ((BukkitHuskHomesPlugin) getPlugin()).getUserSyncScheduler(user);
                 if (delayTicks > 0) {
-                    this.task = scheduler.runDelayed(runnable, null, delayTicks);
+                    this.task = scheduler.runDelayed(this::executeForUser, this::cancel, delayTicks);
                 } else {
-                    this.task = scheduler.run(runnable, null);
+                    this.task = scheduler.run(this::executeForUser, this::cancel);
+                }
+                if (task == null) {
+                    cancel();
                 }
                 return;
             }
 
             // Or default to the global scheduler
-            final RegionalScheduler scheduler = ((BukkitHuskHomes) getPlugin()).getSyncScheduler();
+            final RegionalScheduler scheduler = ((BukkitHuskHomesPlugin) getPlugin()).getSyncScheduler();
             if (delayTicks > 0) {
-                this.task = scheduler.runDelayed(runnable, delayTicks);
+                this.task = scheduler.runDelayed(this::execute, delayTicks);
             } else {
-                this.task = scheduler.run(runnable);
+                this.task = scheduler.run(this::execute);
             }
+        }
+
+        private void executeForUser() {
+            if (getPlugin().getOnlineUserMap().get(user.getUuid()) != user) {
+                cancel();
+                return;
+            }
+            execute();
         }
     }
 
@@ -93,7 +101,7 @@ public interface BukkitTask extends Task {
         }
 
         @Override
-        public void cancel() {
+        public synchronized void cancel() {
             if (task != null && !cancelled) {
                 task.cancel();
             }
@@ -101,23 +109,20 @@ public interface BukkitTask extends Task {
         }
 
         @Override
-        public void run() {
-            if (isPluginDisabled()) {
-                runnable.run();
-                return;
-            }
+        public synchronized void run() {
             if (cancelled) {
                 return;
             }
+            ((BukkitHuskHomesPlugin) getPlugin()).getTasks().register(this);
 
-            final AsynchronousScheduler scheduler = ((BukkitHuskHomes) getPlugin()).getAsyncScheduler();
+            final AsynchronousScheduler scheduler = ((BukkitHuskHomesPlugin) getPlugin()).getAsyncScheduler();
             if (delayTicks > 0) {
                 this.task = scheduler.runDelayed(
-                        runnable,
+                        this::execute,
                         Duration.of(delayTicks * 50L, ChronoUnit.MILLIS)
                 );
             } else {
-                this.task = scheduler.run(runnable);
+                this.task = scheduler.run(this::execute);
             }
         }
     }
@@ -131,7 +136,7 @@ public interface BukkitTask extends Task {
         }
 
         @Override
-        public void cancel() {
+        public synchronized void cancel() {
             if (task != null && !cancelled) {
                 task.cancel();
             }
@@ -139,24 +144,16 @@ public interface BukkitTask extends Task {
         }
 
         @Override
-        public void run() {
-            if (isPluginDisabled()) {
-                return;
-            }
-
+        public synchronized void run() {
             if (!cancelled) {
-                final AsynchronousScheduler scheduler = ((BukkitHuskHomes) getPlugin()).getAsyncScheduler();
+                ((BukkitHuskHomesPlugin) getPlugin()).getTasks().register(this);
+                final AsynchronousScheduler scheduler = ((BukkitHuskHomesPlugin) getPlugin()).getAsyncScheduler();
                 this.task = scheduler.runAtFixedRate(
-                        runnable, Duration.ZERO,
+                        this::execute, Duration.ZERO,
                         Duration.of(repeatingTicks * 50L, ChronoUnit.MILLIS)
                 );
             }
         }
-    }
-
-    // Returns if the Bukkit HuskHomes plugin is disabled
-    default boolean isPluginDisabled() {
-        return !((BukkitHuskHomes) getPlugin()).isEnabled();
     }
 
     interface Supplier extends Task.Supplier {
@@ -181,7 +178,11 @@ public interface BukkitTask extends Task {
 
         @Override
         default void cancelTasks() {
-            ((BukkitHuskHomes) getPlugin()).getScheduler().cancelGlobalTasks();
+            final BukkitHuskHomesPlugin plugin = (BukkitHuskHomesPlugin) getPlugin();
+            plugin.getTasks().close();
+            if (plugin.getMorePaperLib() != null) {
+                plugin.getScheduler().cancelGlobalTasks();
+            }
         }
 
     }

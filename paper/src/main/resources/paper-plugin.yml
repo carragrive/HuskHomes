@@ -6,8 +6,8 @@ authors:
 provides:
   - 'HuskHomes'
 website: 'https://william278.net/'
-main: 'net.william278.huskhomes.PaperHuskHomes'
-loader: 'net.william278.huskhomes.PaperHuskHomesLoader'
+main: 'net.william278.huskhomes.HuskHomesPlugin'
+loader: 'net.william278.huskhomes.HuskHomesPluginLoader'
 version: '${version}'
 api-version: '1.20'
 folia-supported: true

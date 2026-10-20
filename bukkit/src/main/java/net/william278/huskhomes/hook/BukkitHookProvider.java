@@ -19,7 +19,7 @@
 
 package net.william278.huskhomes.hook;
 
-import net.william278.huskhomes.BukkitHuskHomes;
+import net.william278.huskhomes.BukkitHuskHomesPlugin;
 import net.william278.huskhomes.config.Settings;
 import net.william278.huskhomes.importer.EssentialsXImporter;
 import org.jetbrains.annotations.NotNull;
@@ -57,6 +57,6 @@ public interface BukkitHookProvider extends HookProvider {
 
     @Override
     @NotNull
-    BukkitHuskHomes getPlugin();
+    BukkitHuskHomesPlugin getPlugin();
 
 }
