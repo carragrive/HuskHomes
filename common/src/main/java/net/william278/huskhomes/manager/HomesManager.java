@@ -37,6 +37,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.stream.Collectors;
 
 public class HomesManager {
 
@@ -65,14 +66,23 @@ public class HomesManager {
     }
 
     /**
+     * Get cached home names for a user, or an empty list if the user is not cached.
+     */
+    @NotNull
+    public List<String> getUserHomes(@NotNull User user) {
+        final Collection<Home> homes = userHomes.get(user.getName());
+        return homes == null ? List.of() : homes.stream().map(Home::getName).toList();
+    }
+
+    /**
      * Get a list of all cached set home identifiers.
      *
      * @return a list of all cached set home identifiers
      */
     @NotNull
     public List<String> getUserHomeIdentifiers() {
-        return userHomes.entrySet().stream()
-                .flatMap(e -> e.getValue().stream().map(Home::getIdentifier))
+        return userHomes.values().stream()
+                .flatMap(homes -> homes.stream().map(Home::getIdentifier))
                 .toList();
     }
 
@@ -81,11 +91,8 @@ public class HomesManager {
      */
     @NotNull
     public Map<String, List<String>> getPublicHomes() {
-        return publicHomes.stream().collect(
-                HashMap::new,
-                (m, e) -> m.put(e.getOwner().getName(), List.of(e.getName())),
-                HashMap::putAll
-        );
+        return publicHomes.stream().collect(Collectors.groupingBy(home -> home.getOwner().getName(),
+                Collectors.mapping(Home::getName, Collectors.toList())));
     }
 
     /**
@@ -107,13 +114,17 @@ public class HomesManager {
      */
     @NotNull
     public List<String> getPublicHomeNames() {
-        return publicHomes.stream()
-                .map(home -> {
-                    if (publicHomes.stream().filter(h -> h.getName().equals(home.getName())).count() > 1) {
-                        return home.getIdentifier();
-                    }
-                    return home.getName();
-                })
+        record HomeName(String owner, String name) {}
+
+        // Names may change while suggestions are being generated.
+        final String delimiter = Home.getDelimiter();
+        final List<HomeName> homes = List.copyOf(publicHomes).stream()
+                .map(home -> new HomeName(home.getOwner().getName(), home.getName())).toList();
+        final Map<String, Long> nameCounts = homes.stream()
+                .collect(Collectors.groupingBy(HomeName::name, Collectors.counting()));
+        return homes.stream()
+                .map(home -> nameCounts.get(home.name()) > 1
+                        ? home.owner() + delimiter + home.name() : home.name())
                 .toList();
     }
 
@@ -200,7 +211,7 @@ public class HomesManager {
     }
 
     public void removeUserHomes(@NotNull User user) {
-        userHomes.remove(user.getUuid().toString());
+        userHomes.remove(user.getName());
     }
 
     @NotNull

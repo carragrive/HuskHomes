@@ -29,6 +29,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -72,19 +73,30 @@ public class PublicHomeListCommand extends ListCommand {
             return Optional.empty();
         }
 
-        final PaginatedList homeList = PaginatedList.of(publicHomes.stream().map(home ->
+        record HomeListItem(String name, String escapedName, String identifier, String owner, String description) {}
+
+        // Use the same captured name for duplicate detection, display, and command links.
+        final String delimiter = Home.getDelimiter();
+        final List<HomeListItem> items = publicHomes.stream().map(home -> {
+            final String name = home.getName();
+            final String escapedName = Locales.escapeText(name);
+            final String owner = home.getOwner().getName();
+            final String identifier = owner + delimiter + (escapedName.equals(name) ? name : home.getUuid().toString());
+            return new HomeListItem(name, escapedName, identifier, owner, home.getMeta().getDescription());
+        }).toList();
+        final Map<String, Long> nameCounts = items.stream()
+                .collect(Collectors.groupingBy(HomeListItem::name, Collectors.counting()));
+        final PaginatedList homeList = PaginatedList.of(items.stream().map(home ->
                         plugin.getLocales()
                                 .getRawLocale("public_home_list_item",
-                                        publicHomes.stream()
-                                                .filter(h -> h.getName().equals(home.getName())).count() > 1
-                                                ? home.getSafeIdentifier() : Locales.escapeText(home.getName()),
-                                        home.getSafeIdentifier(),
-                                        Locales.escapeText(home.getOwner().getName()),
-                                        home.getMeta().getDescription().isBlank()
+                                        nameCounts.get(home.name()) > 1 ? home.identifier() : home.escapedName(),
+                                        home.identifier(),
+                                        Locales.escapeText(home.owner()),
+                                        home.description().isBlank()
                                                 ? plugin.getLocales().getNone()
-                                                : Locales.escapeText(home.getMeta().getDescription())
+                                                : Locales.escapeText(home.description())
                                 )
-                                .orElse(home.getName())).sorted().collect(Collectors.toList()),
+                                .orElse(home.name())).sorted().collect(Collectors.toList()),
                 plugin.getLocales()
                         .getBaseList(plugin.getSettings().getGeneral().getListItemsPerPage())
                         .setHeaderFormat(plugin.getLocales().getRawLocale("public_home_list_page_title",

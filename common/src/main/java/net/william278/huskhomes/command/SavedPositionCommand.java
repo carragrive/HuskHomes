@@ -243,7 +243,7 @@ public abstract class SavedPositionCommand<T extends SavedPosition> extends Comm
                     yield plugin.getManager().homes().getUserHomeIdentifiers();
                 }
                 if (executor instanceof OnlineUser user) {
-                    yield plugin.getManager().homes().getUserHomes().get(user.getName());
+                    yield plugin.getManager().homes().getUserHomes(user);
                 }
                 yield plugin.getManager().homes().getUserHomeIdentifiers();
             }
